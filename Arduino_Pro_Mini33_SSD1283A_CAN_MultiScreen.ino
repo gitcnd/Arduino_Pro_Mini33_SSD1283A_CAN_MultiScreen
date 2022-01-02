@@ -335,7 +335,7 @@ void setup() {
   analogWrite(LCD_BACKLIGHT,0); // Turn off the backlight at startup (also inits this pin)
 #else
   pinMode(LCD_BACKLIGHT,OUTPUT);
-  digitalWrite(LCD_BACKLIGHT,1; // Turn on the backlight
+  digitalWrite(LCD_BACKLIGHT,1); // Turn on the backlight
 #endif
   SerialIDshow(115200);         // starts Serial, and outputs our version and build info to USB if connected
 
