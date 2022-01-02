@@ -1,4 +1,4 @@
-// WORKS!  With 4 screens & Chinese CAN
+// WORKS!  With 4 screens & Chinese CAN (prints CAN 250k data on second display OK)
 
 /*
 
@@ -64,9 +64,10 @@ MCP_CAN CAN0(10);                               // Set CS to pin 10
 #define CS_SCREEN3 5 // 3rd LCD
 #define CS_SCREEN4 3 // 4th LCD
 
-#define LCD_BACKLIGHT 6
 #define LCD_CD_PIN_A0 8   // This pin controls whether data or control signals are being sent to the screen (bizarre non-SPI idea...)
 #define LCD_RST_PIN 7
+#define LCD_BACKLIGHT 6
+// #define USE_BACKLIGHT_PWM 1 // Comment this out to just turn the screens on only (no dimming) - it looks like PWM on pin 6 interferes with CS pin 9 ...
 
 #include <LCDWIKI_GUI.h> // *Custom* Core graphics library (has car fonts in it)
 #include <SSD1283A.h>    // Hardware-specific library
@@ -330,7 +331,12 @@ void instrument_check() {
 
 
 void setup() {
+#ifdef USE_BACKLIGHT_PWM
   analogWrite(LCD_BACKLIGHT,0); // Turn off the backlight at startup (also inits this pin)
+#else
+  pinMode(LCD_BACKLIGHT,OUTPUT);
+  digitalWrite(LCD_BACKLIGHT,1; // Turn on the backlight
+#endif
   SerialIDshow(115200);         // starts Serial, and outputs our version and build info to USB if connected
 
   //other CAN boards might need: if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) // Our boards have 8mhz xtal... and we are using 250kbps
@@ -379,10 +385,13 @@ void setup() {
     sel_screen(1<<s);
     scrn[s].setRotation(2);     // Orient all the screens so "UP is UP"
   }
+
+#ifdef USE_BACKLIGHT_PWM
   for(int i=1;i<256;i++) {
     analogWrite(LCD_BACKLIGHT,i); // Turn up the screen brightness gradually (kinder on the power supply)
     delay(5);
   }
+#endif
   
   instrument_check(); // Show 888 on everything
   delay(5000);
@@ -427,6 +436,7 @@ void demo_screen() {
   } // s
   r++;
 
+#ifdef USE_BACKLIGHT_PWM
   if(0) { // example of changing screen brightness
     analogWrite(LCD_BACKLIGHT,bright); // This is how you change the LCD brightness from no backlight (0) to full on (255)
     bright+=32;
@@ -434,91 +444,23 @@ void demo_screen() {
     if(bright<32)bright=0;   // so we hit 0 as well
     // $c=0;while(1){$c=0 if($c<32); print "$c "; $c+=32; $c-- if($c==128); $c-=256 if($c>255);}
   }
+#endif
 
   
 } // demo_screen
 
 
-/* old
-void loop() 
-{
-
-  for(int ii=0;ii<3;ii++) {
-
-  if(!digitalRead(CAN0_INT))                          // If CAN0_INT pin is low, read receive buffer
-  {
-    CAN0.readMsgBuf(&rxId, &len, rxBuf);              // Read data: len = data length, buf = data byte(s)
-    
-    if((rxId & 0x80000000) == 0x80000000)             // Determine if ID is standard (11 bits) or extended (29 bits)
-      sprintf(msgString, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
-    else
-      sprintf(msgString, "Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
-  
-    Serial.print(msgString);
-  
-    if((rxId & 0x40000000) == 0x40000000){            // Determine if message is a remote request frame.
-      sprintf(msgString, " REMOTE REQUEST FRAME");
-      Serial.print(msgString);
-    } else {
-      for(byte i = 0; i<len; i++){
-        sprintf(msgString, " 0x%.2X", rxBuf[i]);
-        Serial.print(msgString);
-      }
-    }
-        
-
-
-
-    // Send data to LCD       
-    one[1]=0;
-    for(int i=0;i<strlen(buf);i++) { // Send data to LCD, wrapping as needed
-      //one[0]=" ";    textPrint(0,X,Y,BLACK,BLACK,1,one);     // erase
-      //one[0]=buf[i]; textPrint(0,X,Y,YELLOW,BLACK,1,one); // write char
-
-      scrn[0].Set_Text_colour(BLACK);
-      scrn[0].Set_Text_Back_colour(BLACK);
-      scrn[0].Set_Text_Size(1);
-      one[0]=" "; scrn[0].Print_String(one, X, Y);
-      scrn[0].Set_Text_Back_colour(YELLOW);
-      one[0]=buf[i]; scrn[0].Print_String(one, X, Y);
-      
-      X=X+6;  if(X>=130) { X=0; Y=Y+8; if(Y>=130)Y=0;}  // advance
-    }	  
-
-
-
-
-
-    Serial.println();
-  }else {
-    //Serial.print("pin "); Serial.print(CAN0_INT); Serial.println(" is high: no data to read");
-  }
-
-  // Demo of sending a message over CAN bus
-  if(millis() - prevTX >= invlTX){                    // Send this at a one second interval. 
-    CAN0.enOneShotTX(); delay(10);
-    prevTX = millis();
-    byte sndStat = CAN0.sendMsgBuf(0x112, 8, data); data[7]++;
-    delay(10);CAN0.disOneShotTX();delay(10);
-    if(sndStat == CAN_OK)
-      Serial.println("Message Sent Successfully!");
-    else
-      Serial.println("Error Sending Message...");
-  }
-
-
-  }// for //delay(3000);
-}
-*/
+int X=0;
+int Y=0;
 
 void loop() 
 {
   char buf[50]; // to assemble a big message
   char one[2];  // to output it one-byte-a-a-time
-  int X=0;
-  int Y=0;
 
-  //analogWrite(6,bright); // This is how you change the LCD brightness from no backlight (0) to full on (255)
+#ifdef USE_BACKLIGHT_PWM
+  //analogWrite(LCD_BACKLIGHT,bright); // This is how you change the LCD brightness from no backlight (0) to full on (255)
+#endif
 
   for(int ii=0;ii<3;ii++) {
 
@@ -549,19 +491,22 @@ void loop()
     }
 
     // Send data to LCD       
+    #define CAN_SCRN 1
     one[1]=0;
+    sel_screen(1<<CAN_SCRN);
+    scrn[CAN_SCRN].Set_Text_Back_colour(BLACK);
+    scrn[CAN_SCRN].Set_Text_Size(1);
+
     for(int i=0;i<strlen(buf);i++) { // Send data to LCD, wrapping as needed
       //one[0]=" ";    textPrint(0,X,Y,BLACK,BLACK,1,one);     // erase
       //one[0]=buf[i]; textPrint(0,X,Y,YELLOW,BLACK,1,one); // write char
 
-      scrn[0].Set_Text_colour(BLACK);
-      scrn[0].Set_Text_Back_colour(BLACK);
-      scrn[0].Set_Text_Size(1);
-      one[0]=" "; scrn[0].Print_String(one, X, Y);
-      scrn[0].Set_Text_Back_colour(YELLOW);
-      one[0]=buf[i]; scrn[0].Print_String(one, X, Y);
+      scrn[CAN_SCRN].Set_Text_colour(BLACK);
+      one[0]=" "; scrn[CAN_SCRN].Print_String(one, X, Y);
+      scrn[CAN_SCRN].Set_Text_Back_colour(YELLOW);
+      one[0]=buf[i]; scrn[CAN_SCRN].Print_String(one, X, Y);
       
-      X=X+6;  if(X>=130) { X=0; Y=Y+8; if(Y>=130)Y=0;}  // advance
+      X=X+6;  if(X>=126) { X=0; Y=Y+8; if(Y>=100)Y=0;}  // advance
     }	  
 
 
@@ -572,7 +517,7 @@ void loop()
     //Serial.print("pin "); Serial.print(CAN0_INT); Serial.println(" is high: no data to read");
   }
   
-if(1){ //  example of how to send:-
+if(0){ //  example of how to send:-
   if(millis() - prevTX >= invlTX){                    // Send this at a one second interval. 
     CAN0.enOneShotTX(); delay(10);
     prevTX = millis();
