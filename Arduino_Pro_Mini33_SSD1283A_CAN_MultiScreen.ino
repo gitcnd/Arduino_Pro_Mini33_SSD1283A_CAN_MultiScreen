@@ -299,6 +299,20 @@ void tempC2(uint8_t s,int val, uint8_t draw, int x_offset) {
 
 
 
+void signal(uint8_t s,bool has_sig) {
+  sel_screen(1 << s);
+  scrn[s].Set_Text_Size(1);
+  if(has_sig) {//	  1234567890123 = 13 = 78px wide
+    scrn[s].Set_Text_Back_colour(BLACK);
+    scrn[s].Set_Text_colour(RED);
+    scrn[s].Print_String("               ", 20, 57);
+  } else {
+    scrn[s].Set_Text_Back_colour(RED);
+    scrn[s].Set_Text_colour(WHITE);
+    scrn[s].Print_String(" No CAN Signal ", 20, 57);
+  }
+}
+
 
 void show_font(uint8_t s) {
   sel_screen(1 << s);
@@ -326,6 +340,7 @@ void instrument_check() {
   //show_font(1);  
   tempC(1,88,0,0); // Caller (us here) needs to cache the previous temp numbers
   tempC(1,88,0,130/2);
+  signal(2,false);
 } // instrument_check
 
 
@@ -464,59 +479,63 @@ void loop()
 
   for(int ii=0;ii<3;ii++) {
 
-  if(!digitalRead(CAN0_INT))                          // If CAN0_INT pin is low, read receive buffer
-  {
-   CAN0.readMsgBuf(&rxId, &len, rxBuf);              // Read data: len = data length, buf = data byte(s)
-   if ((rxId>0)||(len>0)) {
 
-    if((rxId & 0x80000000) == 0x80000000)             // Determine if ID is standard (11 bits) or extended (29 bits)
-      sprintf(msgString, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
-    else
-      sprintf(msgString, "Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
-  
-    Serial.print(msgString);
-    sprintf(buf,"ID:%4X L:%d ", rxId, len);
-    
-  
-    if((rxId & 0x40000000) == 0x40000000){            // Determine if message is a remote request frame.
-      sprintf(msgString, " REMOTE REQUEST FRAME");
-      Serial.print(msgString);
-    } else {
-      for(byte i = 0; i<len; i++){
-        sprintf(msgString, " 0x%.2X", rxBuf[i]);
-        Serial.print(msgString);
-        if(strlen(buf)<46) sprintf(&buf[strlen(buf)],"%2X ", rxBuf[i]);
-        
-      }
-    }
+  if(!digitalRead(CAN0_INT))  {                        // If CAN0_INT pin is low, read receive buffer
+    CAN0.readMsgBuf(&rxId, &len, rxBuf);              // Read data: len = data length, buf = data byte(s)
 
-    // Send data to LCD       
-    #define CAN_SCRN 1
-    one[1]=0;
-    sel_screen(1<<CAN_SCRN);
-    scrn[CAN_SCRN].Set_Text_Back_colour(BLACK);
-    scrn[CAN_SCRN].Set_Text_Size(1);
+    if ((rxId>0)||(len>0)) { // we were getting spurious zeros too much...
+      if(can_ok!=2) { can_ok=2; signal(2,true); }
 
-    for(int i=0;i<strlen(buf);i++) { // Send data to LCD, wrapping as needed
-      //one[0]=" ";    textPrint(0,X,Y,BLACK,BLACK,1,one);     // erase
-      //one[0]=buf[i]; textPrint(0,X,Y,YELLOW,BLACK,1,one); // write char
+     if((rxId & 0x80000000) == 0x80000000) {            // Determine if ID is standard (11 bits) or extended (29 bits)
+       sprintf(msgString, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
+       sprintf(buf,"EX:%.8lX L:%1d d:", (rxId & 0x1FFFFFFF), len);
+     } else {
+       sprintf(msgString, "Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
+       sprintf(buf,"ID:%.3lX L:%ld ", rxId, len);
+     }
+   
+     Serial.print(msgString);
+     
+   
+     if((rxId & 0x40000000) == 0x40000000){            // Determine if message is a remote request frame.
+       //sprintf(msgString, " REMOTE REQUEST FRAME");
+       Serial.print("RMT REQ");
+       if(strlen(buf)<46) sprintf(&buf[strlen(buf)],"RMT"); // buf is 50 bytes
+     } else {
+       for(byte i = 0; i<len; i++){
+         sprintf(msgString, " 0x%.2X", rxBuf[i]);				// 0        1         2         3         4         5
+         Serial.print(msgString);						// 12345678901234567890123456789012345678901234567890
+         if(strlen(buf)<46) sprintf(&buf[strlen(buf)],"%.2X ", rxBuf[i]);	// EX:12345678 L:123 d:12 34 56 78 90 12 34 56.
+       }
+     }
+ 
+     // Send data to LCD
+     #define CAN_SCRN 3
+     sel_screen(1<<CAN_SCRN);
+     scrn[CAN_SCRN].Set_Text_Back_colour(BLACK);
+     scrn[CAN_SCRN].Set_Text_colour(YELLOW);
+     scrn[CAN_SCRN].Set_Text_Size(1);
+     one[1]=0;
+     for(int i=0;i<strlen(buf);i++) { // Send data to LCD, wrapping as needed
+       //one[0]=" ";    textPrint(0,X,Y,BLACK,BLACK,1,one);     // erase
+       //one[0]=buf[i]; textPrint(0,X,Y,YELLOW,BLACK,1,one); // write char
+ 
+       //scrn[CAN_SCRN].Set_Text_colour(BLACK);
+       one[0]=" "; scrn[CAN_SCRN].Print_String(one, X, Y);
+       one[0]=buf[i]; scrn[CAN_SCRN].Print_String(one, X, Y);
+       
+       X=X+6;  if(X>=126) { X=0; Y=Y+8; if(Y>=127)Y=0;}  // advance
+     }	  
+ 
+     Serial.println();
 
-      scrn[CAN_SCRN].Set_Text_colour(BLACK);
-      one[0]=" "; scrn[CAN_SCRN].Print_String(one, X, Y);
-      scrn[CAN_SCRN].Set_Text_Back_colour(YELLOW);
-      one[0]=buf[i]; scrn[CAN_SCRN].Print_String(one, X, Y);
-      
-      X=X+6;  if(X>=126) { X=0; Y=Y+8; if(Y>=100)Y=0;}  // advance
-    }	  
-
-
-    Serial.println();
    } // nothing
-    
+  
   }else {
     //Serial.print("pin "); Serial.print(CAN0_INT); Serial.println(" is high: no data to read");
-  }
-  
+  } // CAN0_INT
+
+
 if(0){ //  example of how to send:-
   if(millis() - prevTX >= invlTX){                    // Send this at a one second interval. 
     CAN0.enOneShotTX(); delay(10);
