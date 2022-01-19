@@ -45,7 +45,7 @@
 */
 
 #include <SerialID.h>  // So we know what code and version is running inside our MCUs
-SerialIDset("\n#\tv3.112 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
+SerialIDset("\n#\tv3.20 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
 
 
 #include <mcp_can.h>  // Driver for the Chinese CAN_Bus boards; // cd Arduino/libraries; git clone https://github.com/coryjfowler/MCP_CAN_lib
@@ -92,6 +92,7 @@ SSD1283A_GUI scrn[]={ SSD1283A_GUI( CS_SCREEN1, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_
 #define MAGENTA 0xF81F
 #define YELLOW  0xFFE0
 #define WHITE   0xFFFF
+#define ORANGE  0xFF80
 
 
 
@@ -109,12 +110,15 @@ unsigned char rxBuf[8];
 
 // Serial Output String Buffer
 char msgString[128];
+char fmtString[20]; // temp place converting floats etc to text.
 
 uint8_t last_err=0;
 uint8_t last_dve=0;
-int last_amps=0;
+float last_amps=0.0;
 int last_kwatts=0;
 int last_soc=0;
+long unsigned int last_diag_e=0;
+long unsigned int last_diag_w=0;
 
 int r=0;
 unsigned char bright=0;
@@ -192,21 +196,26 @@ void check_engine(uint8_t s, uint8_t err) { //s is screen_number, err=0 means no
 
 
 // Function to display the current AMPS being drawn
-void amps(uint8_t screen_number, int val) { 
-  sel_screen(1 << screen_number);
-  amps2(screen_number, last_amps, 0);   // un-draw old
-  amps2(screen_number, val, 1);         // draw new
-  last_amps=val;                        // Remember what we just drew, so we can un-draw it later
+void amps(uint8_t screen_number, float val) { 
+  if(last_amps != val) { // Skip re-drawing anything that hasn't changed
+    sel_screen(1 << screen_number);
+    amps2(screen_number, last_amps, 0);   // un-draw old
+    amps2(screen_number, val, 1);         // draw new
+    last_amps=val;                        // Remember what we just drew, so we can un-draw it later
+  }
 } // amps
 
-void amps2(uint8_t s,int val, uint8_t draw) {
+void amps2(uint8_t s,float val, uint8_t draw) {
   scrn[s].Set_Text_Back_colour(BLACK);
   if(!draw) scrn[s].Set_Text_colour(BLACK);
   else scrn[s].Set_Text_colour(0,192,192); // teal
+  dtostrf(val, -6, 1, fmtString); 	// -888.5	// 6 is the length. negative means left-align. 1 is the decimal places
+  sprintf(msgString, "%s", &fmtString);
 
   #define AMP_SIZE 4  // 4 * 6 = 24px wide, 4 * 8 = 32px high
   scrn[s].Set_Text_Size( AMP_SIZE );  
-  scrn[s].Print_Number_Int(val, 130/2 - (3 * 6 * AMP_SIZE)/2 , 1, 0, ' ',10); // "center" for 3 digits   ( num,  x, y, length, filler, base)
+  //scrn[s].Print_String(msgString, 130/2 - (3 * 6 * AMP_SIZE)/2 , 1, 0, ' ',10); // "center" for 3 digits   ( num,  x, y, length, filler, base)
+  scrn[s].Print_String(msgString, 0 , 1); //
 
   if(draw) scrn[s].Set_Text_colour(WHITE);
   scrn[s].Set_Text_Size( AMP_SIZE-1 );  
@@ -238,6 +247,18 @@ void kwatts2(uint8_t s,int val, uint8_t draw) {
   scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE);
 } // kwatts2
 
+
+int socv(float val) { // Convert an Li-iON cell voltage to a charge %
+  int pct;
+  if(val<3.7) {
+    val = 133.33*(val*val*val) - 1365.0*(val*val) + 4671.2*val - 5341.6; // See https://www.powerstream.com/lithium-ion-charge-voltage.htm
+  } else {
+    val = 175.33*val*val*val - 2304.0*val*val + 10164*val - 14939;
+  }
+  pct=val;
+  if(pct>150)pct=150; // calc problem.
+  return pct; // soc(screen_number,pct);
+} // socv
 
 
 // Function to display the remaining battery capacity in numbers (%) 
@@ -299,6 +320,78 @@ void tempC2(uint8_t s,int val, uint8_t draw, int x_offset) {
 
 
 
+// Function to display Diagnostic bit string
+void diag(uint8_t s,unsigned long int val, uint8_t draw, int x_offset, int y_offset, char *label, uint8_t colr) {
+  sel_screen(1 << s);
+  scrn[s].Set_Text_Back_colour(BLACK);
+  if(!draw) scrn[s].Set_Text_colour(BLACK);
+  else { 
+    if(colr==1) scrn[s].Set_Text_colour(RED);
+    else if(colr==2) scrn[s].Set_Text_colour(ORANGE);
+    else if(colr==3) scrn[s].Set_Text_colour(YELLOW);
+    else if(colr>3) scrn[s].Set_Text_colour(WHITE);
+  }
+  scrn[s].Set_Text_Size( 1 );
+  sprintf(msgString, "%s%08lX", label, val);
+  //  scrn[s].Print_Number_Int(val, 0, 16, 0, ' ',16);
+  scrn[s].Print_String(msgString, x_offset,         y_offset);
+} // diag
+
+// Function to display Diagnostic bit string
+void diags(uint8_t s,unsigned int val, uint8_t draw, int x_offset, int y_offset, char *label, uint8_t colr) {
+  sel_screen(1 << s);
+  scrn[s].Set_Text_Back_colour(BLACK);
+  if(!draw) scrn[s].Set_Text_colour(BLACK);
+  else { 
+    if(colr==1) scrn[s].Set_Text_colour(RED);
+    else if(colr==2) scrn[s].Set_Text_colour(ORANGE);
+    else if(colr==3) scrn[s].Set_Text_colour(YELLOW);
+    else if(colr>3) scrn[s].Set_Text_colour(WHITE);
+  }
+  scrn[s].Set_Text_Size( 1 );
+  sprintf(msgString, "%s%04X", label, val);
+  //  scrn[s].Print_Number_Int(val, 0, 16, 0, ' ',16);
+  scrn[s].Print_String(msgString, x_offset,         y_offset);
+} // diags
+
+void volt_v(uint8_t s, float val, uint8_t draw, int x_offset, int y_offset, char *label, uint8_t nlen, uint8_t digs) {
+  sel_screen(1 << s);
+  scrn[s].Set_Text_Back_colour(BLACK);
+  if(!draw) scrn[s].Set_Text_colour(BLACK);
+  else scrn[s].Set_Text_colour(WHITE);
+  dtostrf(val, nlen, digs, &msgString[100]);
+  sprintf(msgString, label, &msgString[100]);
+  scrn[s].Set_Text_Size( 1 );
+  scrn[s].Print_String(msgString, x_offset, y_offset);
+} // volt_v
+
+void percent(uint8_t s, int val, uint8_t draw, int x_offset, int y_offset, char *label) {
+  sel_screen(1 << s);
+  scrn[s].Set_Text_Back_colour(BLACK);
+  if(!draw) scrn[s].Set_Text_colour(BLACK);
+  else scrn[s].Set_Text_colour(WHITE);
+  sprintf(msgString, label, val);
+  scrn[s].Set_Text_Size( 1 );
+  scrn[s].Print_String(msgString, x_offset, y_offset);
+} // percent
+
+
+
+void diag_e(uint8_t screen_number,  unsigned long int val) { if( last_diag_e != val ) { diag(screen_number,  last_diag_e,  0, 0,    13*8+3, "E:",1);   last_diag_e=val;  diag(screen_number,  val, 1, 0,    13*8+3, "E:",1); }}
+void diag_w(uint8_t screen_number,  unsigned long int val) { if( last_diag_w != val ) { diag(screen_number,  last_diag_w,  0, 0,    14*8+3, "W:",2);   last_diag_w=val;  diag(screen_number,  val, 1, 0,    14*8+3, "W:",2); }}
+//void diag_n(uint8_t screen_number,  unsigned long int val) { if( last_diag_n != val ) { diag(screen_number,  last_diag_n,  0, 0,    15*8+3, "N:",3);   last_diag_n=val;  diag(screen_number,  val, 1, 0,    15*8+3, "N:",3); }}
+//void diags_r(uint8_t screen_number,      unsigned int val) { if( last_diags_r != val ) { diags(screen_number, last_diags_r, 0, 11*6, 14*8+3, "rsv:",4); last_diags_r=val; diags(screen_number, val, 1, 11*6, 14*8+3, "rsv:",4); }}
+//void diags_i(uint8_t screen_number,      unsigned int val) { if( last_diags_i != val ) { diags(screen_number, last_diags_i, 0, 11*6, 15*8+3, "Int:",5); last_diags_i=val; diags(screen_number, val, 1, 11*6, 15*8+3, "Int:",5); }}
+
+//void volt_i(uint8_t screen_number, float val) { if( last_volt_i != val ) { volt_v(screen_number, last_volt_i, 0, 3*6, 1+10 * 8, "%s", 5, 1); last_volt_i=val;  volt_v(screen_number, val, 1, 0, 1+10 * 8, "vIN%s", 5, 1); }} 
+//void volt_e(uint8_t screen_number, float val) { if( last_volt_e != val ) { volt_v(screen_number, last_volt_e, 0, 3*6, 1+11 * 8, "%s", 7, 3); last_volt_e=val;  volt_v(screen_number, val, 1, 0, 1+11 * 8, "vEX%s", 5, 1); }} 
+//void volt_b(uint8_t screen_number, float val) { if( last_volt_b != val ) { volt_v(screen_number, last_volt_b, 0, 3*6, 1+12 * 8, "%s", 5, 1); last_volt_b=val;  volt_v(screen_number, val, 1, 0, 1+12 * 8, "BUS%s", 5, 1); }} 
+
+//void pc_t(uint8_t screen_number, int val) { if( last_pc_t != val ) { percent(screen_number, last_pc_t, 0, (11+3)*6, 1+11 * 8, "%d"); last_pc_t=val; percent(screen_number, val, 1, (11)*6, 1+11 * 8, "Th %d %%"); }}
+//void pc_m(uint8_t screen_number, int val) { if( last_pc_m != val ) { percent(screen_number, last_pc_m, 0, (11+3)*6, 1+12 * 8, "%d"); last_pc_m=val; percent(screen_number, val, 1, (11)*6, 1+12 * 8, "Mt %d %%"); }}
+//void pc_c(uint8_t screen_number, int val) { if( last_pc_c != val ) { percent(screen_number, last_pc_c, 0, (11+3)*6, 1+13 * 8, "%d"); last_pc_c=val; percent(screen_number, val, 1, (11)*6, 1+13 * 8, "Cp %d %%"); }}
+
+
 void signal(uint8_t s,bool has_sig) {
   sel_screen(1 << s);
   scrn[s].Set_Text_Size(1);
@@ -334,7 +427,7 @@ void show_font(uint8_t s) {
 void instrument_check() {
   check_engine(0,1);
   pnd(0,1);
-  amps(2,888);
+  amps(2,888.8);
   kwatts(2,-88);
   soc(3,88);
   //show_font(1);  
@@ -468,6 +561,11 @@ void demo_screen() {
 int X=0;
 int Y=0;
 
+
+void good_can() {
+  if(can_ok<3) { can_ok=3; sel_screen(1+2+4+8); scrn[0].Fill_Screen(BLACK); } // Clear all guage-test readings as soon as we get any real good data
+}
+
 void loop() 
 {
   char buf[50]; // to assemble a big message
@@ -484,7 +582,107 @@ void loop()
     CAN0.readMsgBuf(&rxId, &len, rxBuf);              // Read data: len = data length, buf = data byte(s)
 
     if ((rxId>0)||(len>0)) { // we were getting spurious zeros too much...
-      if(can_ok!=2) { can_ok=2; signal(2,true); }
+      if(can_ok<2) { can_ok=2; signal(0,true); }
+
+
+      if((rxId & 0x80000000) == 0x80000000) {           // Determine if ID is standard (11 bits) or extended (29 bits)
+        unsigned long hbcid=rxId & 0x1FFFFFFF; 		// Process extended CAN ID's (if any) here.
+	if(hbcid==0x22f015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
+	  good_can();
+	  long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
+	  float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
+	  amps(2,can_ampsf);
+	}
+      } else {
+	if(rxId==0x7E3) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
+	  good_can();
+	  long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
+	  float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
+	  amps(2,can_ampsf);
+	} else if(rxId==0x701) {			// Standard ID: 0x701       DLC: 1  Data: 0x05 
+	  good_can();
+	} else if(rxId==0x736) {			// Standard ID: 0x036       DLC: 8  Data: 0x0F 0x9C 0xB8 0x00 0x47 0x9C 0xBB 0x3F
+	  good_can();
+	  uint64_t e=rxBuf[3]<<24 + rxBuf[2]<<16 + rxBuf[1]<<8 + rxBuf[0];
+	  uint64_t w=rxBuf[7]<<24 + rxBuf[6]<<16 + rxBuf[5]<<8 + rxBuf[4];
+	  diag_e(0,e);
+	  diag_w(0,w);
+	} else if(rxId==0x736) {			// Standard ID: 0x281       DLC: 8  Data: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+	  good_can();
+	}
+      }
+  
+/*
+
+Standard ID: 0x701       DLC: 1  Data: 0x05 
+Standard ID: 0x036       DLC: 8  Data: 0x13 0x9C 0xB0 0x00 0x47 0x9C 0xB4 0x34
+Standard ID: 0x036       DLC: 8  Data: 0x01 0x9C 0xC0 0x00 0x47 0x9C 0xC4 0x42
+Standard ID: 0x036       DLC: 8  Data: 0x1A 0x9C 0xB8 0x00 0x47 0x9C 0xBB 0x4A
+Standard ID: 0x036       DLC: 8  Data: 0x0F 0x9C 0xB8 0x00 0x47 0x9C 0xBB 0x3F
+Standard ID: 0x036       DLC: 8  Data: 0x04 0x9C 0x9A 0x00 0x47 0x9C 0x9F 0xFA
+Standard ID: 0x036       DLC: 8  Data: 0x1D 0x9C 0xDA 0x00 0x47 0x9C 0xE0 0x94
+Standard ID: 0x036       DLC: 8  Data: 0x12 0x9C 0xB3 0x00 0x47 0x9C 0xB4 0x36
+Standard ID: 0x701       DLC: 1  Data: 0x05 
+Standard ID: 0x036       DLC: 8  Data: 0x1F 0x9C 0xD6 0x00 0x47 0x9C 0xDA 0x8C
+Standard ID: 0x036       DLC: 8  Data: 0x1A 0x9C 0xB6 0x00 0x47 0x9C 0xBB 0x48
+Standard ID: 0x036       DLC: 8  Data: 0x0F 0x9C 0xB7 0x00 0x47 0x9C 0xBB 0x3E
+Standard ID: 0x036       DLC: 8  Data: 0x04 0x9C 0x9A 0x00 0x47 0x9C 0x9E 0xF9
+Standard ID: 0x036       DLC: 8  Data: 0x1C 0x9C 0xB5 0x00 0x47 0x9C 0xB9 0x47
+Standard ID: 0x036       DLC: 8  Data: 0x11 0x9C 0xC4 0x00 0x47 0x9C 0xCA 0x5C
+Standard ID: 0x036       DLC: 8  Data: 0x06 0x9C 0xC7 0x00 0x47 0x9C 0xCD 0x57
+Standard ID: 0x036       DLC: 8  Data: 0x1F 0x9C 0xD7 0x00 0x47 0x9C 0xDB 0x8E
+Standard ID: 0x036       DLC: 8  Data: 0x14 0x9C 0xAB 0x00 0x47 0x9C 0xAF 0x2B
+Standard ID: 0x036       DLC: 8  Data: 0x09 0x9C 0xC1 0x00 0x47 0x9C 0xC6 0x4D
+Standard ID: 0x036       DLC: 8  Data: 0x22 0x9C 0xBB 0x00 0x47 0x9C 0xC0 0x5A
+Standard ID: 0x701       DLC: 1  Data: 0x05 
+Standard ID: 0x036       DLC: 8  Data: 0x0C 0x9C 0xB1 0x00 0x47 0x9C 0xB7 0x31
+Standard ID: 0x036       DLC: 8  Data: 0x06 0x9C 0xC8 0x00 0x47 0x9C 0xCC 0x57
+Standard ID: 0x036       DLC: 8  Data: 0x1F 0x9C 0xD5 0x00 0x47 0x9C 0xDB 0x8C
+Standard ID: 0x036       DLC: 8  Data: 0x14 0x9C 0xAA 0x00 0x47 0x9C 0xAF 0x2A
+Standard ID: 0x281       DLC: 8  Data: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+Standard ID: 0x036       DLC: 8  Data: 0x22 0x9C 0xBB 0x00 0x47 0x9C 0xBF 0x59
+Standard ID: 0x036       DLC: 8  Data: 0x17 0x9C 0xBD 0x00 0x47 0x9C 0xC2 0x53
+Standard ID: 0x701       DLC: 1  Data: 0x05 
+Standard ID: 0x036       DLC: 8  Data: 0x00 0x9C 0xC7 0x00 0x47 0x9C 0xCB 0x4F
+Standard ID: 0x036       DLC: 8  Data: 0x1F 0x9C 0xD7 0x00 0x47 0x9C 0xDB 0x8E
+Standard ID: 0x036       DLC: 8  Data: 0x14 0x9C 0xAB 0x00 0x47 0x9C 0xAE 0x2A
+Standard ID: 0x036       DLC: 8  Data: 0x09 0x9C 0xC2 0x00 0x47 0x9C 0xC6 0x4E
+Standard ID: 0x036       DLC: 8  Data: 0x22 0x9C 0xBB 0x00 0x47 0x9C 0xBF 0x59
+Standard ID: 0x036       DLC: 8  Data: 0x16 0x9C 0xA5 0x00 0x47 0x9C 0xA9 0x21
+Standard ID: 0x281       DLC: 8  Data: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+Standard ID: 0x036       DLC: 8  Data: 0x00 0x9C 0xC6 0x00 0x47 0x9C 0xCA 0x4D
+Standard ID: 0x036       DLC: 8  Data: 0x19 0x9C 0xC6 0x00 0x47 0x9C 0xC9 0x65
+Standard ID: 0x281       DLC: 8  Data: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+Standard ID: 0x701       DLC: 1  Data: 0x05 
+Standard ID: 0x036       DLC: 8  Data: 0x1C 0x9C 0xB3 0x00 0x47 0x9C 0xB8 0x44
+Standard ID: 0x036       DLC: 8  Data: 0x16 0x9C 0xA6 0x00 0x47 0x9C 0xA9 0x22
+Standard ID: 0x036       DLC: 8  Data: 0x0B 0x9C 0xCE 0x00 0x47 0x9C 0xD3 0x69
+Standard ID: 0x036       DLC: 8  Data: 0x00 0x9C 0xC6 0x00 0x47 0x9C 0xCB 0x4E
+Standard ID: 0x036       DLC: 8  Data: 0x19 0x9C 0xC5 0x00 0x47 0x9C 0xC9 0x64
+Standard ID: 0x036       DLC: 8  Data: 0x0E 0x9C 0xB2 0x00 0x47 0x9C 0xB8 0x35
+Standard ID: 0x036       DLC: 8  Data: 0x03 0x9C 0xBA 0x00 0x47 0x9C 0xBF 0x39
+Standard ID: 0x036       DLC: 8  Data: 0x1C 0x9C 0xB3 0x00 0x47 0x9C 0xB9 0x45
+Standard ID: 0x036       DLC: 8  Data: 0x11 0x9C 0xC6 0x00 0x47 0x9C 0xCB 0x5F
+Standard ID: 0x701       DLC: 1  Data: 0x05 
+Standard ID: 0x036       DLC: 8  Data: 0x1E 0x9C 0xD5 0x00 0x47 0x9C 0xD7 0x87
+Standard ID: 0x036       DLC: 8  Data: 0x19 0x9C 0xC5 0x00 0x47 0x9C 0xC9 0x64
+Standard ID: 0x036       DLC: 8  Data: 0x0E 0x9C 0xB3 0x00 0x47 0x9C 0xB7 0x35
+Standard ID: 0x036       DLC: 8  Data: 0x03 0x9C 0xBA 0x00 0x47 0x9C 0xBE 0x38
+Standard ID: 0x036       DLC: 8  Data: 0x1C 0x9C 0xB4 0x00 0x47 0x9C 0xB9 0x46
+Standard ID: 0x036       DLC: 8  Data: 0x10 0x9C 0xB1 0x00 0x47 0x9C 0xB6 0x34
+Standard ID: 0x281       DLC: 8  Data: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+Standard ID: 0x036       DLC: 8  Data: 0x1E 0x9C 0xD4 0x00 0x47 0x9C 0xD9 0x88
+Standard ID: 0x036       DLC: 8  Data: 0x13 0x9C 0xAE 0x00 0x47 0x9C 0xB4 0x32
+Standard ID: 0x036       DLC: 8  Data: 0x08 0x9C 0xBC 0x00 0x47 0x9C 0xC1 0x42
+Standard ID: 0x281       DLC: 8  Data: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+Standard ID: 0x036       DLC: 8  Data: 0x16 0x9C 0xA3 0x00 0x47 0x9C 0xA9 0x1F
+Standard ID: 0x036       DLC: 8  Data: 0x0B 0x9C 0xD0 0x00 0x47 0x9C 0xD3 0x6B
+Standard ID: 0x036       DLC: 8  Data: 0x00 0x9C 0xC6 0x00 0x47 0x9C 0xCA 0x4D
+Standard ID: 0x036       DLC: 8  Data: 0x19 0x9C 0xC5 0x00 0x47 0x9C 0xCA 0x65
+
+*/
+
+     // Below - debug: can data output to serial
 
      if((rxId & 0x80000000) == 0x80000000) {            // Determine if ID is standard (11 bits) or extended (29 bits)
        sprintf(msgString, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
