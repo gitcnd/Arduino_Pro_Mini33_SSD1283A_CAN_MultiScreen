@@ -45,7 +45,7 @@
 */
 
 #include <SerialID.h>  // So we know what code and version is running inside our MCUs
-SerialIDset("\n#\tv3.21 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
+SerialIDset("\n#\tv3.22 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
 
 
 #include <mcp_can.h>  // Driver for the Chinese CAN_Bus boards; // cd Arduino/libraries; git clone https://github.com/coryjfowler/MCP_CAN_lib
@@ -123,7 +123,8 @@ long unsigned int last_diag_w=0;
 int r=0;
 unsigned char bright=0;
 unsigned char degsym[]={246,0}; // 246 is the font dergees-symbol
-
+uint8_t last_temp_i=0;
+uint8_t last_temp_m=0;
 
 
 
@@ -197,7 +198,7 @@ void check_engine(uint8_t s, uint8_t err) { //s is screen_number, err=0 means no
 
 // Function to display the current AMPS being drawn
 void amps(uint8_t screen_number, float val) { 
-  if(last_amps != val) { // Skip re-drawing anything that hasn't changed
+  if(int(last_amps*10) != int(val*10)) { // Skip re-drawing anything that hasn't changed
     sel_screen(1 << screen_number);
     amps2(screen_number, last_amps, 0);   // un-draw old
     amps2(screen_number, val, 1);         // draw new
@@ -379,10 +380,15 @@ void percent(uint8_t s, int val, uint8_t draw, int x_offset, int y_offset, char 
 
 void diag_e(uint8_t screen_number,  unsigned long int val) { if( last_diag_e != val ) { diag(screen_number,  last_diag_e,  0, 0,    13*8+3, "E:",1);   last_diag_e=val;  diag(screen_number,  val, 1, 0,    13*8+3, "E:",1); }}
 void diag_w(uint8_t screen_number,  unsigned long int val) { if( last_diag_w != val ) { diag(screen_number,  last_diag_w,  0, 0,    14*8+3, "W:",2);   last_diag_w=val;  diag(screen_number,  val, 1, 0,    14*8+3, "W:",2); }}
+
+void temp_i(uint8_t screen_number,  uint8_t val) { if( last_temp_i != val ) { tempC(screen_number,  last_temp_i,  0, 0,   0);       last_temp_i=val;  tempC(screen_number,  val, 1, 0, 0    ); }}
+void temp_m(uint8_t screen_number,  uint8_t val) { if( last_temp_m != val ) { tempC(screen_number,  last_temp_m,  0, 0,   130/2);   last_temp_m=val;  tempC(screen_number,  val, 1, 0, 130/2); }}
+
 //void diag_n(uint8_t screen_number,  unsigned long int val) { if( last_diag_n != val ) { diag(screen_number,  last_diag_n,  0, 0,    15*8+3, "N:",3);   last_diag_n=val;  diag(screen_number,  val, 1, 0,    15*8+3, "N:",3); }}
 //void diags_r(uint8_t screen_number,      unsigned int val) { if( last_diags_r != val ) { diags(screen_number, last_diags_r, 0, 11*6, 14*8+3, "rsv:",4); last_diags_r=val; diags(screen_number, val, 1, 11*6, 14*8+3, "rsv:",4); }}
 //void diags_i(uint8_t screen_number,      unsigned int val) { if( last_diags_i != val ) { diags(screen_number, last_diags_i, 0, 11*6, 15*8+3, "Int:",5); last_diags_i=val; diags(screen_number, val, 1, 11*6, 15*8+3, "Int:",5); }}
 
+  tempC(1,88,0,130/2);
 //void volt_i(uint8_t screen_number, float val) { if( last_volt_i != val ) { volt_v(screen_number, last_volt_i, 0, 3*6, 1+10 * 8, "%s", 5, 1); last_volt_i=val;  volt_v(screen_number, val, 1, 0, 1+10 * 8, "vIN%s", 5, 1); }} 
 //void volt_e(uint8_t screen_number, float val) { if( last_volt_e != val ) { volt_v(screen_number, last_volt_e, 0, 3*6, 1+11 * 8, "%s", 7, 3); last_volt_e=val;  volt_v(screen_number, val, 1, 0, 1+11 * 8, "vEX%s", 5, 1); }} 
 //void volt_b(uint8_t screen_number, float val) { if( last_volt_b != val ) { volt_v(screen_number, last_volt_b, 0, 3*6, 1+12 * 8, "%s", 5, 1); last_volt_b=val;  volt_v(screen_number, val, 1, 0, 1+12 * 8, "BUS%s", 5, 1); }} 
@@ -602,6 +608,11 @@ void loop()
 	} else if(rxId==0x401) {			// PID: b48401, OBD Header: 7E3, Equation: H - state of charge etc
 	  good_can();					// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x3D 0x02 0xFF 0xFF 0x55
   	  soc(3,rxBuf[7]);				// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
+	  temp_i(1,rxBuf[0]);				// Controller Temp........................^^^^
+	  temp_m(1,rxBuf[1]);				// Motor Temp..................................^^^^
+	  //rxBuf[2]					// Fault Code.......................................^^^^
+	  //rxBuf[3]<<8+rxBuf[4]			// Motor RPM.............................................^^^^^^^^
+	  //rxBuf[5]<<8+rxBuf[6]			// Motor Torque -100:100 ..........................................^^^^^^^^
 	  
 	} else if(rxId==0x701) {			// Standard ID: 0x701       DLC: 1  Data: 0x05 
 	  good_can();
