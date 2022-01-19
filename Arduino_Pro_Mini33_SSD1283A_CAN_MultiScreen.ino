@@ -381,14 +381,13 @@ void percent(uint8_t s, int val, uint8_t draw, int x_offset, int y_offset, char 
 void diag_e(uint8_t screen_number,  unsigned long int val) { if( last_diag_e != val ) { diag(screen_number,  last_diag_e,  0, 0,    13*8+3, "E:",1);   last_diag_e=val;  diag(screen_number,  val, 1, 0,    13*8+3, "E:",1); }}
 void diag_w(uint8_t screen_number,  unsigned long int val) { if( last_diag_w != val ) { diag(screen_number,  last_diag_w,  0, 0,    14*8+3, "W:",2);   last_diag_w=val;  diag(screen_number,  val, 1, 0,    14*8+3, "W:",2); }}
 
-void temp_i(uint8_t screen_number,  uint8_t val) { if( last_temp_i != val ) { tempC(screen_number,  last_temp_i,  0, 0,   0);       last_temp_i=val;  tempC(screen_number,  val, 1, 0, 0    ); }}
-void temp_m(uint8_t screen_number,  uint8_t val) { if( last_temp_m != val ) { tempC(screen_number,  last_temp_m,  0, 0,   130/2);   last_temp_m=val;  tempC(screen_number,  val, 1, 0, 130/2); }}
+void temp_i(uint8_t screen_number,  uint8_t val) { if( last_temp_i != val ) { tempC(screen_number,  val, last_temp_i,  0);       last_temp_i=val;  }}
+void temp_m(uint8_t screen_number,  uint8_t val) { if( last_temp_m != val ) { tempC(screen_number,  val, last_temp_m,  130/2);   last_temp_m=val;  }}
 
 //void diag_n(uint8_t screen_number,  unsigned long int val) { if( last_diag_n != val ) { diag(screen_number,  last_diag_n,  0, 0,    15*8+3, "N:",3);   last_diag_n=val;  diag(screen_number,  val, 1, 0,    15*8+3, "N:",3); }}
 //void diags_r(uint8_t screen_number,      unsigned int val) { if( last_diags_r != val ) { diags(screen_number, last_diags_r, 0, 11*6, 14*8+3, "rsv:",4); last_diags_r=val; diags(screen_number, val, 1, 11*6, 14*8+3, "rsv:",4); }}
 //void diags_i(uint8_t screen_number,      unsigned int val) { if( last_diags_i != val ) { diags(screen_number, last_diags_i, 0, 11*6, 15*8+3, "Int:",5); last_diags_i=val; diags(screen_number, val, 1, 11*6, 15*8+3, "Int:",5); }}
 
-  tempC(1,88,0,130/2);
 //void volt_i(uint8_t screen_number, float val) { if( last_volt_i != val ) { volt_v(screen_number, last_volt_i, 0, 3*6, 1+10 * 8, "%s", 5, 1); last_volt_i=val;  volt_v(screen_number, val, 1, 0, 1+10 * 8, "vIN%s", 5, 1); }} 
 //void volt_e(uint8_t screen_number, float val) { if( last_volt_e != val ) { volt_v(screen_number, last_volt_e, 0, 3*6, 1+11 * 8, "%s", 7, 3); last_volt_e=val;  volt_v(screen_number, val, 1, 0, 1+11 * 8, "vEX%s", 5, 1); }} 
 //void volt_b(uint8_t screen_number, float val) { if( last_volt_b != val ) { volt_v(screen_number, last_volt_b, 0, 3*6, 1+12 * 8, "%s", 5, 1); last_volt_b=val;  volt_v(screen_number, val, 1, 0, 1+12 * 8, "BUS%s", 5, 1); }} 
