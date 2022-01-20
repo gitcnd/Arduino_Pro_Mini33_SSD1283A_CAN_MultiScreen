@@ -48,7 +48,7 @@
 */
 
 #include <SerialID.h>	// This lib is a convenient way to report what code and version is running inside our MCUs (Serial.prints below at boot)
-SerialIDset("\n#\tv3.24 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
+SerialIDset("\n#\tv3.25 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
 
 
 #include <mcp_can.h>  // Driver for the Chinese CAN_Bus boards; // cd Arduino/libraries; git clone https://github.com/coryjfowler/MCP_CAN_lib
@@ -143,7 +143,7 @@ void good_can() {
   if(can_ok<3) { 
     can_ok=3;
     // sel_screen(1+2+4+8); scrn[0].Fill_Screen(BLACK);
-    signal(0,2);		// Clear "No Valid CAN Signal" message
+    signal(2,2);		// Clear "No Valid CAN Signal" message
     instrument_check(false);	// Replace 888's with ---- everywhere
   }
 }
@@ -639,7 +639,7 @@ void loop()
     CAN0.readMsgBuf(&rxId, &len, rxBuf);              // Read data: len = data length, buf = data byte(s)
 
     if ((rxId>0)||(len>0)) { // we were getting spurious zeros too much...
-      if(can_ok<2) { can_ok=2; signal(0,1); }
+      if(can_ok<2) { can_ok=2; signal(2,1); }
 
 
       if((rxId & 0x80000000) == 0x80000000) {           // Determine if ID is standard (11 bits) or extended (29 bits)
@@ -659,8 +659,8 @@ void loop()
 	} else if(rxId==0x401) {			// PID: b48401, OBD Header: 7E3, Equation: H - state of charge etc
 	  good_can();					// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x3D 0x02 0xFF 0xFF 0x55
   	  soc(3,rxBuf[7],true);				// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
-	  temp_i(1,rxBuf[0],true);			// Controller Temp........................^^^^
-	  temp_m(1,rxBuf[1],true);			// Motor Temp..................................^^^^
+	  temp_i(1,rxBuf[0]-40,true);			// Controller Temp........................^^^^
+	  temp_m(1,rxBuf[1]-40,true);			// Motor Temp..................................^^^^
 	  //rxBuf[2]					// Fault Code.......................................^^^^
 	  //rxBuf[3]<<8+rxBuf[4]			// Motor RPM.............................................^^^^^^^^
 	  //rxBuf[5]<<8+rxBuf[6]			// Motor Torque -100:100 ..........................................^^^^^^^^
