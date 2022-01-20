@@ -48,7 +48,7 @@
 */
 
 #include <SerialID.h>	// This lib is a convenient way to report what code and version is running inside our MCUs (Serial.prints below at boot)
-SerialIDset("\n#\tv3.25 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
+SerialIDset("\n#\tv3.26 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
 
 
 #include <mcp_can.h>  // Driver for the Chinese CAN_Bus boards; // cd Arduino/libraries; git clone https://github.com/coryjfowler/MCP_CAN_lib
@@ -143,8 +143,8 @@ void good_can() {
   if(can_ok<3) { 
     can_ok=3;
     // sel_screen(1+2+4+8); scrn[0].Fill_Screen(BLACK);
-    signal(2,2);		// Clear "No Valid CAN Signal" message
     instrument_check(false);	// Replace 888's with ---- everywhere
+    signal(2,2);		// Clear "No Valid CAN Signal" message
   }
 }
 
@@ -639,7 +639,7 @@ void loop()
     CAN0.readMsgBuf(&rxId, &len, rxBuf);              // Read data: len = data length, buf = data byte(s)
 
     if ((rxId>0)||(len>0)) { // we were getting spurious zeros too much...
-      if(can_ok<2) { can_ok=2; signal(2,1); }
+      if(can_ok<2) { can_ok=2; signal(2,1); }		// "No Valid CAN Signal"
 
 
       if((rxId & 0x80000000) == 0x80000000) {           // Determine if ID is standard (11 bits) or extended (29 bits)
