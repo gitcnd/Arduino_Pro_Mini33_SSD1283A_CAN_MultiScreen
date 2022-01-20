@@ -1,18 +1,20 @@
-// WORKS!  With 4 screens & Chinese CAN (prints CAN 250k data on second display OK)
-
 /*
 
-  This code runs on any 3.3v or 5v arduino.  
+  This code works on any 5v arduino (The MCP2515 CAN board is unstable at 3.3v) and drives upto 4 LCDs
 
-  Uses this CAN Bus library: https://github.com/coryjfowler/MCP_CAN_lib
+  For support/issues/etc go to https://github.com/gitcnd/Arduino_Pro_Mini33_SSD1283A_CAN_MultiScreen
+
+
+  Use this CAN Bus library: https://github.com/coryjfowler/MCP_CAN_lib
     => to install: cd Arduino/libraries; git clone https://github.com/coryjfowler/MCP_CAN_lib
-
   To drive these CAN_Bus boards: https://www.aliexpress.com/item/33041533951.html
 
-  Using these scereens:  https://www.aliexpress.com/item/1005002378136214.html
-  With this driver: https://github.com/ZinggJM/SSD1283A
+  
+  Use this LCD driver: https://github.com/ZinggJM/SSD1283A
     => to install: cd Arduino/libraries; git clone https://github.com/ZinggJM/SSD1283A
-    
+  To drive these scereens:  https://www.aliexpress.com/item/1005002378136214.html
+
+
   It reads incoming data from CAN_Bus, serial, analogue-inputs, and/or digital pins.
 
   It outputs the data onto 4 LCD screens.
@@ -20,12 +22,12 @@
   Except for the CS wires, all the LCDs are joined toghter, 
 
   Wiring - LCD <=> ARDUINO
-           LED  => Pin6  (PWM brightness)
+           LED  => Pin9  (PWM brightness)
            SCK  => PIN13 (SCK)
            SDA  => PIN11 (MOSI)
            A0   => PIN8
            RST  => PIN7
-           CS   => Pins 5, 9, 4, and 3  (each screen has own pin)
+           CS   => Pins 5, 6, 4, and 3  (each screen has own pin)
 
            CAN_Bus <=> ARDUINO
            SO   => PIN12 (MISO)
@@ -35,8 +37,9 @@
            INT  => PIN2
            
 
-  This also requires the custom LCDWIKI_GUI library;
-   => to install: cd Arduino/libraries; git clone **TBD**
+  This also requires the custom LCDWIKI_GUI library (included in this distro);
+   => to install: cd Arduino/libraries; git clone **TBD** (included)
+
   And the SerialID library:
    => to install: cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git 
 
@@ -44,12 +47,13 @@
   
 */
 
-#include <SerialID.h>  // So we know what code and version is running inside our MCUs
-SerialIDset("\n#\tv3.23 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
+#include <SerialID.h>	// This lib is a convenient way to report what code and version is running inside our MCUs (Serial.prints below at boot)
+SerialIDset("\n#\tv3.24 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
 
 
 #include <mcp_can.h>  // Driver for the Chinese CAN_Bus boards; // cd Arduino/libraries; git clone https://github.com/coryjfowler/MCP_CAN_lib
 #include <SPI.h>
+
 
 // CAN0 INT and CS
 #define CAN0_INT 2                              // Set INT to pin 2
@@ -57,8 +61,6 @@ MCP_CAN CAN0(10);                               // Set CS to pin 10
 
 
 // Wire your 4 screens with CD(A0)=8, SDA=13, SCK=11, RST=7, LED=6, and CS= the below:-
-
-
 #define CS_SCREEN1 4 // 1st LCD
 #define CS_SCREEN2 6 // 2nd LCD
 #define CS_SCREEN3 5 // 3rd LCD
@@ -67,20 +69,18 @@ MCP_CAN CAN0(10);                               // Set CS to pin 10
 #define LCD_CD_PIN_A0 8   // This pin controls whether data or control signals are being sent to the screen (bizarre non-SPI idea...)
 #define LCD_RST_PIN 7
 #define LCD_BACKLIGHT 9
-// #define USE_BACKLIGHT_PWM 1 // Comment this out to just turn the screens on only (no dimming) - it looks like PWM on pin 6 interferes with CS pin 9 ...
+// #define USE_BACKLIGHT_PWM 1 // Comment this out to just turn the screens on only (no dimming) - it looks like PWM might interferes with CS pin 9/6 ...
 
 #include <LCDWIKI_GUI.h> // *Custom* Core graphics library (has car fonts in it)
-#include <SSD1283A.h>    // Hardware-specific library
+#include <SSD1283A.h>    // Hardware-specific library. // cd Arduino/libraries; git clone https://github.com/ZinggJM/SSD1283A
 
 #if defined(__AVR)
+// Create an array of screen objects
 SSD1283A_GUI scrn[]={ SSD1283A_GUI( CS_SCREEN1, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_BACKLIGHT), 
                       SSD1283A_GUI( CS_SCREEN2, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_BACKLIGHT), 
                       SSD1283A_GUI( CS_SCREEN3, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_BACKLIGHT), 
-                      SSD1283A_GUI( CS_SCREEN4, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_BACKLIGHT) }; // Create an array of screen objects
-                      //SSD1283A_GUI mylcd1(/*CS=10*/ CS_SCREEN1, /*DC=*/ 8, /*RST=*/ 7, /*LED=*/ 6); //hardware spi,cs,cd,reset,led
-                      //SSD1283A_GUI mylcd2(/*CS=10*/ CS_SCREEN2, /*DC=*/ 8, /*RST=*/ 7, /*LED=*/ 6); //hardware spi,cs,cd,reset,led
-                      //SSD1283A_GUI mylcd3(/*CS=10*/ CS_SCREEN3, /*DC=*/ 8, /*RST=*/ 7, /*LED=*/ 6); //hardware spi,cs,cd,reset,led
-                      //SSD1283A_GUI mylcd4(/*CS=10*/ CS_SCREEN4, /*DC=*/ 8, /*RST=*/ 7, /*LED=*/ 6); //hardware spi,cs,cd,reset,led
+                      SSD1283A_GUI( CS_SCREEN4, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_BACKLIGHT) };
+ //SSD1283A_GUI mylcd1(/*CS=10*/ CS_SCREEN1, /*DC=*/ 8, /*RST=*/ 7, /*LED=*/ 6); //hardware spi,cs,cd,reset,led
 #endif
 
 
@@ -93,8 +93,6 @@ SSD1283A_GUI scrn[]={ SSD1283A_GUI( CS_SCREEN1, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_
 #define YELLOW  0xFFE0
 #define WHITE   0xFFFF
 #define ORANGE  0xFF80
-
-
 
 
 // CAN TX Variables
@@ -120,11 +118,13 @@ int last_soc=0;
 long unsigned int last_diag_e=0;
 long unsigned int last_diag_w=0;
 
-int r=0;
 unsigned char bright=0;
 unsigned char degsym[]={246,0}; // 246 is the font dergees-symbol
 uint8_t last_temp_i=0;
 uint8_t last_temp_m=0;
+
+int X=0; // on-screen CAN diag output
+int Y=0;
 
 
 
@@ -138,16 +138,42 @@ void sel_screen(int n) {
 } // sel_screen
 
 
+// Clear all guage-test readings as soon as we get any real good data
+void good_can() {
+  if(can_ok<3) { 
+    can_ok=3;
+    // sel_screen(1+2+4+8); scrn[0].Fill_Screen(BLACK);
+    signal(0,2);		// Clear "No Valid CAN Signal" message
+    instrument_check(false);	// Replace 888's with ---- everywhere
+  }
+}
+
+
+// Convert a Li-iON cell voltage to a charge percentage
+int socv(float val) { 
+  int pct;
+  if(val<3.7) {
+    val = 133.33*(val*val*val) - 1365.0*(val*val) + 4671.2*val - 5341.6; // See https://www.powerstream.com/lithium-ion-charge-voltage.htm
+  } else {
+    val = 175.33*val*val*val - 2304.0*val*val + 10164*val - 14939;
+  }
+  pct=val;
+  if(pct>150)pct=150; // prevent calc problems going nuts; limit to 150% on errors
+  if(pct<0)pct=-99; // prevent calc problems going nuts
+  return pct;
+} // socv
+
+
 
 // Function to display (P)ark, (N)eutral, or (D)rive on a display, and optionally the check-engine symbol
-void pnd(uint8_t screen_number, uint8_t dve) { // dve is 0 for Park, 1 for Neutral, 2 for Drive
+void pnd(uint8_t screen_number, uint8_t dve, bool good_can) { // dve is 0 for Park, 1 for Neutral, 2 for Drive
   sel_screen(1 << screen_number);
-  pnd2(screen_number, last_dve, 0);   // un-draw old
-  pnd2(screen_number, dve, 1);        // draw new
+  pnd2(screen_number, last_dve, 0, good_can);   // un-draw old
+  pnd2(screen_number, dve, 1, good_can);        // draw new
   last_dve=dve;                       // Remember what we just drew, so we can un-draw it later
 } // pnd
 
-void pnd2(uint8_t s,uint8_t dve, uint8_t draw) { // Draw (and un-draw) for the pnd() Function
+void pnd2(uint8_t s,uint8_t dve, uint8_t draw, bool good_can) { // Draw (and un-draw) for the pnd() Function
   int x,y;
   char pnd[]={'P','N','D'};
   #define PND_SIZE 4
@@ -197,21 +223,24 @@ void check_engine(uint8_t s, uint8_t err) { //s is screen_number, err=0 means no
 
 
 // Function to display the current AMPS being drawn
-void amps(uint8_t screen_number, float val) { 
+void amps(uint8_t screen_number, float val, bool good_can) { 
   if(int(last_amps*10) != int(val*10)) { // Skip re-drawing anything that hasn't changed
     sel_screen(1 << screen_number);
-    amps2(screen_number, last_amps, 0);   // un-draw old
-    amps2(screen_number, val, 1);         // draw new
-    last_amps=val;                        // Remember what we just drew, so we can un-draw it later
+    amps2(screen_number, last_amps, 0, good_can);	// un-draw old
+    amps2(screen_number, val, 1, good_can);		// draw new
+    last_amps=val;                        		// Remember what we just drew, so we can un-draw it later
   }
 } // amps
 
-void amps2(uint8_t s,float val, uint8_t draw) {
+void amps2(uint8_t s,float val, uint8_t draw, bool good_can) {
   scrn[s].Set_Text_Back_colour(BLACK);
   if(!draw) scrn[s].Set_Text_colour(BLACK);
   else scrn[s].Set_Text_colour(0,192,192); // teal
   dtostrf(val, -6, 1, fmtString); 	// -888.5	// 6 is the length. negative means left-align. 1 is the decimal places
-  sprintf(msgString, "%s", &fmtString);
+  if(good_can) 
+    sprintf(msgString, "%s", &fmtString);
+  else
+    sprintf(msgString, "%s", " ---.-");
 
   #define AMP_SIZE 4  // 4 * 6 = 24px wide, 4 * 8 = 32px high
   scrn[s].Set_Text_Size( AMP_SIZE );  
@@ -226,16 +255,16 @@ void amps2(uint8_t s,float val, uint8_t draw) {
 
 
 // Function to display watts being drawn (or negative - regen - added)
-void kwatts(uint8_t screen_number, int val) { 
+void kwatts(uint8_t screen_number, int val, bool good_can) { 
   if( last_kwatts != val ) { // Skip re-drawing anything that hasn't changed
     sel_screen(1 << screen_number);
-    kwatts2(screen_number, last_kwatts, 0);   // un-draw old
-    kwatts2(screen_number, val, 1);         // draw new
+    kwatts2(screen_number, last_kwatts, 0, good_can);   // un-draw old
+    kwatts2(screen_number, val, 1, good_can);         // draw new
     last_kwatts=val;                        // Remember what we just drew, so we can un-draw it later
   }
 } // kwatts
 
-void kwatts2(uint8_t s,int val, uint8_t draw) {
+void kwatts2(uint8_t s,int val, uint8_t draw, bool good_can) {
   scrn[s].Set_Text_Back_colour(BLACK);
   if(!draw) scrn[s].Set_Text_colour(BLACK);
   else if(val>=0) scrn[s].Set_Text_colour(0,192,192); // teal
@@ -243,7 +272,10 @@ void kwatts2(uint8_t s,int val, uint8_t draw) {
 
   #define KW_SIZE 4  // 4 * 6 = 24px wide, 4 * 8 = 32px high
   scrn[s].Set_Text_Size( KW_SIZE );  
-  scrn[s].Print_Number_Int(val, 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66, 3, ' ',10); // "center" for 2 digits   ( num,  x, y, length, filler, base)
+  if(good_can)
+    scrn[s].Print_Number_Int(val, 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66, 3, ' ',10); // "center" for 2 digits   ( num,  x, y, length, filler, base)
+  else
+    scrn[s].Print_String(" --", 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66);
 
   if(draw) scrn[s].Set_Text_colour(WHITE);
   scrn[s].Set_Text_Size( KW_SIZE-1 );  
@@ -251,30 +283,18 @@ void kwatts2(uint8_t s,int val, uint8_t draw) {
 } // kwatts2
 
 
-int socv(float val) { // Convert an Li-iON cell voltage to a charge %
-  int pct;
-  if(val<3.7) {
-    val = 133.33*(val*val*val) - 1365.0*(val*val) + 4671.2*val - 5341.6; // See https://www.powerstream.com/lithium-ion-charge-voltage.htm
-  } else {
-    val = 175.33*val*val*val - 2304.0*val*val + 10164*val - 14939;
-  }
-  pct=val;
-  if(pct>150)pct=150; // calc problem.
-  return pct; // soc(screen_number,pct);
-} // socv
-
 
 // Function to display the remaining battery capacity in numbers (%) 
-void soc(uint8_t screen_number, int val) { 
+void soc(uint8_t screen_number, int val, bool good_can) { 
   if( last_soc != val ) { // Skip re-drawing anything that hasn't changed
     sel_screen(1 << screen_number);
-    soc2(screen_number, last_soc, 0);   // un-draw old
-    soc2(screen_number, val, 1);         // draw new
-    last_soc=val;                        // Remember what we just drew, so we can un-draw it later
+    soc2(screen_number, last_soc, 0,good_can);	// un-draw old
+    soc2(screen_number, val, 1,good_can);	// draw new
+    last_soc=val;				// Remember what we just drew, so we can un-draw it later
   }
 } // kwatts
 
-void soc2(uint8_t s,int val, uint8_t draw) {
+void soc2(uint8_t s,int val, uint8_t draw, bool good_can) {
   scrn[s].Set_Text_Back_colour(BLACK);
   if(!draw) scrn[s].Set_Text_colour(BLACK);
   else scrn[s].Set_Text_colour(0,192,192); // teal
@@ -283,8 +303,11 @@ void soc2(uint8_t s,int val, uint8_t draw) {
   scrn[s].Set_Text_Size( SOC_SIZE-1 );  
   scrn[s].Print_String("%",  130/2 - (3 * 6 * SOC_SIZE)/2 + SOC_SIZE*3 + (2 * 6 * SOC_SIZE)   , 66+8); // Do this first, so big numbers overwrite the % instead of other way around
 
-  scrn[s].Set_Text_Size( SOC_SIZE );  
-  scrn[s].Print_Number_Int(val, 130/2 - (3 * 6 * SOC_SIZE)/2 + SOC_SIZE*3 , 66, 3, ' ',10); // "center" for 2 digits   ( num,  x, y, length, filler, base)
+  scrn[s].Set_Text_Size( SOC_SIZE );
+  if(good_can)
+    scrn[s].Print_Number_Int(val, 130/2 - (3 * 6 * SOC_SIZE)/2 + SOC_SIZE*3 , 66, 3, ' ',10); // "center" for 2 digits   ( num,  x, y, length, filler, base)
+  else
+    scrn[s].Print_String(" --", 130/2 - (3 * 6 * SOC_SIZE)/2 + SOC_SIZE*3 , 66);
 
   if(draw) scrn[s].Set_Text_colour(WHITE);
   scrn[s].Set_Text_Size( SOC_SIZE-1 );  
@@ -292,17 +315,15 @@ void soc2(uint8_t s,int val, uint8_t draw) {
 } // soc2
 
 
-// degrees symbol: (246 I think)  ö
-
 
 // Function to display pretty temperature data
-void tempC(uint8_t screen_number, int val, int last_val, int x_offset) { 
+void tempC(uint8_t screen_number, int val, int last_val, int x_offset, bool good_can) { 
   sel_screen(1 << screen_number);
-  tempC2(screen_number, last_val, 0, x_offset);   // un-draw old
-  tempC2(screen_number, val, 1, x_offset);         // draw new
+  tempC2(screen_number, last_val, 0, x_offset, good_can);   // un-draw old
+  tempC2(screen_number, val, 1, x_offset, good_can);         // draw new
 } // tempC
 
-void tempC2(uint8_t s,int val, uint8_t draw, int x_offset) {
+void tempC2(uint8_t s,int val, uint8_t draw, int x_offset, bool good_can) {
   scrn[s].Set_Text_Back_colour(BLACK);
   if(!draw) scrn[s].Set_Text_colour(BLACK);
   else scrn[s].Set_Text_colour(0,192,192); // teal
@@ -310,22 +331,26 @@ void tempC2(uint8_t s,int val, uint8_t draw, int x_offset) {
   #define TEMP_SIZE 2  // 4 * 6 = 24px wide, 4 * 8 = 32px high
   scrn[s].Set_Text_Size( TEMP_SIZE );  
   
-  sprintf(msgString, "%d%sC", val, degsym);
+  if(good_can)
+    sprintf(msgString, "%d%sC", val, degsym); // degrees symbol: (246 I think)  ö
+  else
+    sprintf(msgString, "--%sC", degsym);
  
   scrn[s].Print_String(msgString, x_offset + 10, 130 - 8*TEMP_SIZE-10); // Do it all in teal, so the degrees-C is in the right spot
   if(draw) { // re-draw just the number, in white now
     scrn[s].Set_Text_colour(WHITE);
     sprintf(msgString, "%d", val);
-    scrn[s].Print_String(msgString, x_offset + 10, 130 - 8*TEMP_SIZE-10); // Do it all in teal, so the degrees-C is in the right spot
+    if(good_can)
+      scrn[s].Print_String(msgString, x_offset + 10, 130 - 8*TEMP_SIZE-10); // Do it all in teal, so the degrees-C is in the right spot
+    else
+      scrn[s].Print_String("--", x_offset + 10, 130 - 8*TEMP_SIZE-10);
   }
-
-  // Draw a thermometer in graphics here...
-  
+  // Draw a thermometer in graphics here... ?
 } // tempC2
 
 
 
-// Function to display Diagnostic bit string
+// Function to display 32bit Diagnostic bit string
 void diag(uint8_t s,unsigned long int val, uint8_t draw, int x_offset, int y_offset, char *label, uint8_t colr) {
   sel_screen(1 << s);
   scrn[s].Set_Text_Back_colour(BLACK);
@@ -342,7 +367,9 @@ void diag(uint8_t s,unsigned long int val, uint8_t draw, int x_offset, int y_off
   scrn[s].Print_String(msgString, x_offset,         y_offset);
 } // diag
 
-// Function to display Diagnostic bit string
+
+
+// Function to display 16bit Diagnostic bit string
 void diags(uint8_t s,unsigned int val, uint8_t draw, int x_offset, int y_offset, char *label, uint8_t colr) {
   sel_screen(1 << s);
   scrn[s].Set_Text_Back_colour(BLACK);
@@ -359,6 +386,9 @@ void diags(uint8_t s,unsigned int val, uint8_t draw, int x_offset, int y_offset,
   scrn[s].Print_String(msgString, x_offset,         y_offset);
 } // diags
 
+
+
+// Function to display voltage
 void volt_v(uint8_t s, float val, uint8_t draw, int x_offset, int y_offset, char *label, uint8_t nlen, uint8_t digs) {
   sel_screen(1 << s);
   scrn[s].Set_Text_Back_colour(BLACK);
@@ -370,6 +400,9 @@ void volt_v(uint8_t s, float val, uint8_t draw, int x_offset, int y_offset, char
   scrn[s].Print_String(msgString, x_offset, y_offset);
 } // volt_v
 
+
+
+// Function to display percentage
 void percent(uint8_t s, int val, uint8_t draw, int x_offset, int y_offset, char *label) {
   sel_screen(1 << s);
   scrn[s].Set_Text_Back_colour(BLACK);
@@ -382,11 +415,36 @@ void percent(uint8_t s, int val, uint8_t draw, int x_offset, int y_offset, char 
 
 
 
+// Function to display a message about CAN Bus Data
+void signal(uint8_t s,uint8_t has_sig) {
+  sel_screen(1 << s);
+  scrn[s].Set_Text_Size(1);
+  if(has_sig==1) {//	  1234567890123 = 13 = 78px wide
+    scrn[s].Set_Text_Back_colour(BLACK);
+    scrn[s].Set_Text_colour(RED);
+    //scrn[s].Print_String("               ", 20, 57);
+    scrn[s].Print_String(" No Valid CAN Signal ", 2, 57);
+  } else if(has_sig==2) { // All OK now
+    scrn[s].Set_Text_Back_colour(BLACK);
+    scrn[s].Set_Text_colour(RED);
+    //scrn[s].Print_String("               ", 20, 57);
+    scrn[s].Print_String("                     ", 2, 57);
+  } else {
+    scrn[s].Set_Text_Back_colour(RED);
+    scrn[s].Set_Text_colour(WHITE);
+    scrn[s].Print_String(" No CAN Signal ", 20, 57);
+  }
+} // signal
+
+
+
+// Connector functions between incoming CAN data and screen display functions
+
 void diag_e(uint8_t screen_number,  unsigned long int val) { if( last_diag_e != val ) { diag(screen_number,  last_diag_e,  0, 0,    13*8+3, "E:",1);   last_diag_e=val;  diag(screen_number,  val, 1, 0,    13*8+3, "E:",1); }}
 void diag_w(uint8_t screen_number,  unsigned long int val) { if( last_diag_w != val ) { diag(screen_number,  last_diag_w,  0, 0,    14*8+3, "W:",2);   last_diag_w=val;  diag(screen_number,  val, 1, 0,    14*8+3, "W:",2); }}
 
-void temp_i(uint8_t screen_number,  uint8_t val) { if( last_temp_i != val ) { tempC(screen_number,  val, last_temp_i,  0);       last_temp_i=val;  }}
-void temp_m(uint8_t screen_number,  uint8_t val) { if( last_temp_m != val ) { tempC(screen_number,  val, last_temp_m,  130/2);   last_temp_m=val;  }}
+void temp_i(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_i != val ) { tempC(screen_number,  val, last_temp_i,  0, good_can);       last_temp_i=val;  }}
+void temp_m(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_m != val ) { tempC(screen_number,  val, last_temp_m,  130/2, good_can);   last_temp_m=val;  }}
 
 //void diag_n(uint8_t screen_number,  unsigned long int val) { if( last_diag_n != val ) { diag(screen_number,  last_diag_n,  0, 0,    15*8+3, "N:",3);   last_diag_n=val;  diag(screen_number,  val, 1, 0,    15*8+3, "N:",3); }}
 //void diags_r(uint8_t screen_number,      unsigned int val) { if( last_diags_r != val ) { diags(screen_number, last_diags_r, 0, 11*6, 14*8+3, "rsv:",4); last_diags_r=val; diags(screen_number, val, 1, 11*6, 14*8+3, "rsv:",4); }}
@@ -401,19 +459,25 @@ void temp_m(uint8_t screen_number,  uint8_t val) { if( last_temp_m != val ) { te
 //void pc_c(uint8_t screen_number, int val) { if( last_pc_c != val ) { percent(screen_number, last_pc_c, 0, (11+3)*6, 1+13 * 8, "%d"); last_pc_c=val; percent(screen_number, val, 1, (11)*6, 1+13 * 8, "Cp %d %%"); }}
 
 
-void signal(uint8_t s,bool has_sig) {
-  sel_screen(1 << s);
-  scrn[s].Set_Text_Size(1);
-  if(has_sig) {//	  1234567890123 = 13 = 78px wide
-    scrn[s].Set_Text_Back_colour(BLACK);
-    scrn[s].Set_Text_colour(RED);
-    scrn[s].Print_String("               ", 20, 57);
-  } else {
-    scrn[s].Set_Text_Back_colour(RED);
-    scrn[s].Set_Text_colour(WHITE);
-    scrn[s].Print_String(" No CAN Signal ", 20, 57);
-  }
-}
+
+// Light up all the instruments like analogue cars do, to check all guages are working...
+void instrument_check(bool good_can) { // good_can=true (for instrument_check 888's) or false (to replace 888's with ----)
+  // good_can    888-check-888    ; else    ---_wait_---
+  if(good_can)   check_engine(0,1) ; else check_engine(0,0);
+  if(good_can)   pnd(0,1,good_can); else  pnd(0,1,good_can);
+  if(good_can)   amps(2,888.8,good_can); else  amps(2,987.6,good_can);
+  if(good_can)   kwatts(2,-88,good_can); else  kwatts(2,-98,good_can);
+  if(good_can)   soc(3,88,good_can); else soc(3,123,good_can);	// Note that the value must be different, otherwise the screen-print code gets skipped.
+  //show_font(1);  
+  //if(good_can)   tempC(1,88,0,0,good_can); else    tempC(1,123,0,0,good_can);
+  //if(good_can)   tempC(1,88,0,130/2,good_can); else  tempC(1,123,0,130/2,good_can);
+  if(good_can)   temp_i(1,88,good_can); else  temp_i(1,123,good_can);
+  if(good_can)   temp_m(1,88,good_can); else  temp_m(1,123,good_can);
+  signal(2,0);	// Show "No CAN Signal"
+} // instrument_check
+
+
+/* Debug subs
 
 
 void show_font(uint8_t s) {
@@ -430,22 +494,59 @@ void show_font(uint8_t s) {
 } // show_font
 
 
+void demo_screen() {
+  for(int s=0; s<4; s++) {
+    int sbit=1<<s;
+    sel_screen(sbit);
+    // scrn[s].setRotation(r); // If you get an error in this line, you've forgotten to pick an Arduino board to compile to ( Tools => Board => Arduin AVR Boards => Arduino Nano )
+  
+    scrn[s].Set_Text_Mode(0);
+  
+    scrn[s].Fill_Screen(0x0000);
+    scrn[s].Set_Text_colour(RED);
+    scrn[s].Set_Text_Back_colour(BLACK);
+    scrn[s].Set_Text_Size(1);
+    scrn[s].Print_String("Hello World!", 0, 0);
+    scrn[s].Print_Number_Float(01234.56789, 2, 0, 8, '.', 0, ' ');  
+    scrn[s].Print_Number_Int(0xDEADBEF, 0, 16, 0, ' ',16);
+
+    scrn[s].Set_Text_colour(GREEN);
+    scrn[s].Set_Text_Size(2);
+    scrn[s].Print_String("Screen", 0, 32);
+    scrn[s].Print_Number_Int(s, 100, 32, 0, ' ',32);
+    scrn[s].Print_Number_Float(01234.56789, 2, 0, 48, '.', 0, ' ');  
+    scrn[s].Print_Number_Int(0xDEADBEF, 0, 64, 0, ' ',16);
+
+    scrn[s].Set_Text_colour(BLUE);
+    scrn[s].Set_Text_Size(3);
+    scrn[s].Print_String("Hello", 0, 86);
+    scrn[s].Print_Number_Float(01234.56789, 2, 0, 110, '.', 0, ' ');  
+    //scrn[s].Print_Number_Int(0xDEADBEF, 0, 134, 0, ' ',16);
+
+    pnd(s, s%3); // 0 (P) ,1 (N), ,2 (D)
+
+  } // s
+
+#ifdef USE_BACKLIGHT_PWM
+  if(0) { // example of changing screen brightness
+    analogWrite(LCD_BACKLIGHT,bright); // This is how you change the LCD brightness from no backlight (0) to full on (255)
+    bright+=32;
+    if(bright==128)bright--; // so we hit 255 later
+    if(bright<32)bright=0;   // so we hit 0 as well
+    // $c=0;while(1){$c=0 if($c<32); print "$c "; $c+=32; $c-- if($c==128); $c-=256 if($c>255);}
+  }
+#endif
+} // demo_screen
+
+*/
 
 
-// Light up all the instruments like analogue cars do, to check all guages are working...
-void instrument_check() {
-  check_engine(0,1);
-  pnd(0,1);
-  amps(2,888.8);
-  kwatts(2,-88);
-  soc(3,88);
-  //show_font(1);  
-  tempC(1,88,0,0); // Caller (us here) needs to cache the previous temp numbers
-  tempC(1,88,0,130/2);
-  signal(2,false);
-} // instrument_check
 
-
+/******************************************************************************
+**									     **
+**				     setup()				     **
+**									     **
+******************************************************************************/
 
 void setup() {
 #ifdef USE_BACKLIGHT_PWM
@@ -510,71 +611,18 @@ void setup() {
   }
 #endif
   
-  instrument_check(); // Show 888 on everything
+  instrument_check(true); // Show 888 on everything (fake a "good_can" to force all the 888's)
   delay(5000);
   
 } // setup
 
 
 
-void demo_screen() {
-
-  for(int s=0; s<4; s++) {
-    int sbit=1<<s;
-    sel_screen(sbit);
-//    scrn[s].setRotation(r); // If you get an error in this line, you've forgotten to pick an Arduino board to compile to ( Tools => Board => Arduin AVR Boards => Arduino Nano )
-//    scrn[s].setRotation(s); // If you get an error in this line, you've forgotten to pick an Arduino board to compile to ( Tools => Board => Arduin AVR Boards => Arduino Nano )
-  
-    scrn[s].Set_Text_Mode(0);
-  
-    scrn[s].Fill_Screen(0x0000);
-    scrn[s].Set_Text_colour(RED);
-    scrn[s].Set_Text_Back_colour(BLACK);
-    scrn[s].Set_Text_Size(1);
-    scrn[s].Print_String("Hello World!", 0, 0);
-    scrn[s].Print_Number_Float(01234.56789, 2, 0, 8, '.', 0, ' ');  
-    scrn[s].Print_Number_Int(0xDEADBEF, 0, 16, 0, ' ',16);
-
-    scrn[s].Set_Text_colour(GREEN);
-    scrn[s].Set_Text_Size(2);
-    scrn[s].Print_String("Screen", 0, 32);
-    scrn[s].Print_Number_Int(s, 100, 32, 0, ' ',32);
-    scrn[s].Print_Number_Float(01234.56789, 2, 0, 48, '.', 0, ' ');  
-    scrn[s].Print_Number_Int(0xDEADBEF, 0, 64, 0, ' ',16);
-
-    scrn[s].Set_Text_colour(BLUE);
-    scrn[s].Set_Text_Size(3);
-    scrn[s].Print_String("Hello", 0, 86);
-    scrn[s].Print_Number_Float(01234.56789, 2, 0, 110, '.', 0, ' ');  
-    //scrn[s].Print_Number_Int(0xDEADBEF, 0, 134, 0, ' ',16);
-
-    pnd(s, s%3); // 0 (P) ,1 (N), ,2 (D)
-
-  } // s
-  r++;
-
-#ifdef USE_BACKLIGHT_PWM
-  if(0) { // example of changing screen brightness
-    analogWrite(LCD_BACKLIGHT,bright); // This is how you change the LCD brightness from no backlight (0) to full on (255)
-    bright+=32;
-    if(bright==128)bright--; // so we hit 255 later
-    if(bright<32)bright=0;   // so we hit 0 as well
-    // $c=0;while(1){$c=0 if($c<32); print "$c "; $c+=32; $c-- if($c==128); $c-=256 if($c>255);}
-  }
-#endif
-
-  
-} // demo_screen
-
-
-int X=0;
-int Y=0;
-
-
-void good_can() {
-  if(can_ok<3) { can_ok=3; sel_screen(1+2+4+8); scrn[0].Fill_Screen(BLACK); } // Clear all guage-test readings as soon as we get any real good data
-}
-
+/******************************************************************************
+**									     **
+**				     loop()				     **
+**									     **
+******************************************************************************/
 void loop() 
 {
   char buf[50]; // to assemble a big message
@@ -591,7 +639,7 @@ void loop()
     CAN0.readMsgBuf(&rxId, &len, rxBuf);              // Read data: len = data length, buf = data byte(s)
 
     if ((rxId>0)||(len>0)) { // we were getting spurious zeros too much...
-      if(can_ok<2) { can_ok=2; signal(0,true); }
+      if(can_ok<2) { can_ok=2; signal(0,1); }
 
 
       if((rxId & 0x80000000) == 0x80000000) {           // Determine if ID is standard (11 bits) or extended (29 bits)
@@ -600,19 +648,19 @@ void loop()
 	  good_can();
 	  long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
 	  float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
-	  amps(2,can_ampsf);
+	  amps(2,can_ampsf,true);
 	}
       } else {
 	if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
 	  good_can();
 	  long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
 	  float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
-	  amps(2,can_ampsf);
+	  amps(2,can_ampsf,true);
 	} else if(rxId==0x401) {			// PID: b48401, OBD Header: 7E3, Equation: H - state of charge etc
 	  good_can();					// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x3D 0x02 0xFF 0xFF 0x55
-  	  soc(3,rxBuf[7]);				// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
-	  temp_i(1,rxBuf[0]);				// Controller Temp........................^^^^
-	  temp_m(1,rxBuf[1]);				// Motor Temp..................................^^^^
+  	  soc(3,rxBuf[7],true);				// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
+	  temp_i(1,rxBuf[0],true);			// Controller Temp........................^^^^
+	  temp_m(1,rxBuf[1],true);			// Motor Temp..................................^^^^
 	  //rxBuf[2]					// Fault Code.......................................^^^^
 	  //rxBuf[3]<<8+rxBuf[4]			// Motor RPM.............................................^^^^^^^^
 	  //rxBuf[5]<<8+rxBuf[6]			// Motor Torque -100:100 ..........................................^^^^^^^^
