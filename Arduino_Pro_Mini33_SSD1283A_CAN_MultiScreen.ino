@@ -45,7 +45,7 @@
 */
 
 #include <SerialID.h>  // So we know what code and version is running inside our MCUs
-SerialIDset("\n#\tv3.22 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
+SerialIDset("\n#\tv3.23 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
 
 
 #include <mcp_can.h>  // Driver for the Chinese CAN_Bus boards; // cd Arduino/libraries; git clone https://github.com/coryjfowler/MCP_CAN_lib
@@ -227,10 +227,12 @@ void amps2(uint8_t s,float val, uint8_t draw) {
 
 // Function to display watts being drawn (or negative - regen - added)
 void kwatts(uint8_t screen_number, int val) { 
-  sel_screen(1 << screen_number);
-  kwatts2(screen_number, last_kwatts, 0);   // un-draw old
-  kwatts2(screen_number, val, 1);         // draw new
-  last_kwatts=val;                        // Remember what we just drew, so we can un-draw it later
+  if( last_kwatts != val ) { // Skip re-drawing anything that hasn't changed
+    sel_screen(1 << screen_number);
+    kwatts2(screen_number, last_kwatts, 0);   // un-draw old
+    kwatts2(screen_number, val, 1);         // draw new
+    last_kwatts=val;                        // Remember what we just drew, so we can un-draw it later
+  }
 } // kwatts
 
 void kwatts2(uint8_t s,int val, uint8_t draw) {
@@ -264,10 +266,12 @@ int socv(float val) { // Convert an Li-iON cell voltage to a charge %
 
 // Function to display the remaining battery capacity in numbers (%) 
 void soc(uint8_t screen_number, int val) { 
-  sel_screen(1 << screen_number);
-  soc2(screen_number, last_soc, 0);   // un-draw old
-  soc2(screen_number, val, 1);         // draw new
-  last_soc=val;                        // Remember what we just drew, so we can un-draw it later
+  if( last_soc != val ) { // Skip re-drawing anything that hasn't changed
+    sel_screen(1 << screen_number);
+    soc2(screen_number, last_soc, 0);   // un-draw old
+    soc2(screen_number, val, 1);         // draw new
+    last_soc=val;                        // Remember what we just drew, so we can un-draw it later
+  }
 } // kwatts
 
 void soc2(uint8_t s,int val, uint8_t draw) {
