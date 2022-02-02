@@ -104,7 +104,18 @@ uint8_t can_ok = 0;                                               // Gets set to
 // CAN RX Variables
 long unsigned int rxId;
 unsigned char len;
-unsigned char rxBuf[8];
+//unsigned char rxBuf[8];
+
+#define BufSz 8
+union Data {
+  uint8_t b[BufSz/sizeof(uint8_t)];   // 8 bytes
+  int8_t sb[BufSz/sizeof(uint8_t)];   // 8 bytes
+  uint16_t i[BufSz/sizeof(uint16_t)]; // 4
+  int16_t si[BufSz/sizeof(int16_t)];  // 4
+  uint32_t l[BufSz/sizeof(uint32_t)]; // 2
+  int32_t sl[BufSz/sizeof(int32_t)];  // 2
+  float f[BufSz/sizeof(float)];
+} rxBuf;
 
 // Serial Output String Buffer
 char msgString[128];
@@ -343,7 +354,7 @@ void tempC2(uint8_t s,int val, uint8_t draw, int x_offset, bool good_can) {
     if(good_can)
       scrn[s].Print_String(msgString, x_offset + 10, 130 - 8*TEMP_SIZE-10); // Do it all in teal, so the degrees-C is in the right spot
     else
-      scrn[s].Print_String("--", x_offset + 10, 130 - 8*TEMP_SIZE-10);
+      scrn[s].Print_String("--",      x_offset + 10, 130 - 8*TEMP_SIZE-10);
   }
   // Draw a thermometer in graphics here... ?
 } // tempC2
@@ -440,8 +451,8 @@ void signal(uint8_t s,uint8_t has_sig) {
 
 // Connector functions between incoming CAN data and screen display functions
 
-void diag_e(uint8_t screen_number,  unsigned long int val) { if( last_diag_e != val ) { diag(screen_number,  last_diag_e,  0, 0,    13*8+3, "E:",1);   last_diag_e=val;  diag(screen_number,  val, 1, 0,    13*8+3, "E:",1); }}
-void diag_w(uint8_t screen_number,  unsigned long int val) { if( last_diag_w != val ) { diag(screen_number,  last_diag_w,  0, 0,    14*8+3, "W:",2);   last_diag_w=val;  diag(screen_number,  val, 1, 0,    14*8+3, "W:",2); }}
+void diag_e(uint8_t screen_number,  unsigned long int val) { if( last_diag_e != val ) { diag(screen_number,  last_diag_e,  0, 0,    13*8+3,  (char*)"E:",1);   last_diag_e=val;  diag(screen_number,  val, 1, 0,    13*8+3, (char*)"E:",1); }}
+void diag_w(uint8_t screen_number,  unsigned long int val) { if( last_diag_w != val ) { diag(screen_number,  last_diag_w,  0, 0,    14*8+3,  (char*)"W:",2);   last_diag_w=val;  diag(screen_number,  val, 1, 0,    14*8+3,  (char*)"W:",2); }}
 
 void temp_i(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_i != val ) { tempC(screen_number,  val, last_temp_i,  0, good_can);       last_temp_i=val;  }}
 void temp_m(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_m != val ) { tempC(screen_number,  val, last_temp_m,  130/2, good_can);   last_temp_m=val;  }}
@@ -636,7 +647,7 @@ void loop()
 
 
   if(!digitalRead(CAN0_INT))  {                        // If CAN0_INT pin is low, read receive buffer
-    CAN0.readMsgBuf(&rxId, &len, rxBuf);              // Read data: len = data length, buf = data byte(s)
+    CAN0.readMsgBuf(&rxId, &len, rxBuf.b);              // Read data: len = data length, buf = data byte(s)
 
     if ((rxId>0)||(len>0)) { // we were getting spurious zeros too much...
       if(can_ok<2) { can_ok=2; signal(2,1); }		// "No Valid CAN Signal"
@@ -646,21 +657,24 @@ void loop()
         unsigned long hbcid=rxId & 0x1FFFFFFF; 		// Process extended CAN ID's (if any) here.
 	if(hbcid==0x22f015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
 	  good_can();
-	  long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
-	  float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
+	  //long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
+	  long can_amps=rxBuf.b[0]; can_amps+=rxBuf.b[1]; can_amps-=32767;
+	  float can_ampsf=float(can_amps); can_ampsf=can_ampsf/10.0 * -1.0;
 	  amps(2,can_ampsf,true);
 	}
       } else {
 	if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
 	  good_can();
-	  long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
-	  float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
+	  //long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
+	  //float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
+	  long can_amps=rxBuf.b[0]; can_amps+=rxBuf.b[1]; can_amps-=32767;
+	  float can_ampsf=float(can_amps); can_ampsf=can_ampsf/10.0 * -1.0;
 	  amps(2,can_ampsf,true);
 	} else if(rxId==0x401) {			// PID: b48401, OBD Header: 7E3, Equation: H - state of charge etc
 	  good_can();					// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x3D 0x02 0xFF 0xFF 0x55
-  	  soc(3,rxBuf[7],true);				// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
-	  temp_i(1,rxBuf[0]-40,true);			// Controller Temp........................^^^^
-	  temp_m(1,rxBuf[1]-40,true);			// Motor Temp..................................^^^^
+  	  soc(3,rxBuf.b[7],true);				// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
+	  temp_i(1,rxBuf.b[0]-40,true);			// Controller Temp........................^^^^
+	  temp_m(1,rxBuf.b[1]-40,true);			// Motor Temp..................................^^^^
 	  //rxBuf[2]					// Fault Code.......................................^^^^
 	  //rxBuf[3]<<8+rxBuf[4]			// Motor RPM.............................................^^^^^^^^
 	  //rxBuf[5]<<8+rxBuf[6]			// Motor Torque -100:100 ..........................................^^^^^^^^
@@ -669,10 +683,10 @@ void loop()
 	  good_can();
 	} else if(rxId==0x181) {			// Standard ID: 0x181       DLC: 8  Data: 0x99 0x01 0x00 0x20 0x6D 0x00 0x00 0x39
 	  good_can();
-	  uint64_t e=rxBuf[3]<<24 + rxBuf[2]<<16 + rxBuf[1]<<8 + rxBuf[0];
-	  uint64_t w=rxBuf[7]<<24 + rxBuf[6]<<16 + rxBuf[5]<<8 + rxBuf[4];
-	  diag_e(0,e);
-	  diag_w(0,w);
+	  //uint64_t e=rxBuf[3]<<24 + rxBuf[2]<<16 + rxBuf[1]<<8 + rxBuf[0];
+	  //uint64_t w=rxBuf[7]<<24 + rxBuf[6]<<16 + rxBuf[5]<<8 + rxBuf[4];
+	  diag_e(0,rxBuf.l[0]); // e;
+	  diag_w(0,rxBuf.l[1]); // w
 	} else if(rxId==0x736) {			// Standard ID: 0x281       DLC: 8  Data: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
 	  good_can();
 	}
@@ -721,7 +735,7 @@ Standard ID: 0x708       DLC: 8  Data: 0x06 0xA7 0xB0 0xB0 0x01 0x90 0xAE 0x00
        sprintf(buf,"EX:%.8lX L:%1d d:", (rxId & 0x1FFFFFFF), len);
      } else {
        sprintf(msgString, "Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
-       sprintf(buf,"ID:%.3lX L:%ld ", rxId, len);
+       sprintf(buf,"ID:%.3lX L:%d ", rxId, len);
      }
    
      Serial.print(msgString);
@@ -733,9 +747,9 @@ Standard ID: 0x708       DLC: 8  Data: 0x06 0xA7 0xB0 0xB0 0x01 0x90 0xAE 0x00
        if(strlen(buf)<46) sprintf(&buf[strlen(buf)],"RMT"); // buf is 50 bytes
      } else {
        for(byte i = 0; i<len; i++){
-         sprintf(msgString, " 0x%.2X", rxBuf[i]);				// 0        1         2         3         4         5
+         sprintf(msgString, " 0x%.2X", rxBuf.b[i]);				// 0        1         2         3         4         5
          Serial.print(msgString);						// 12345678901234567890123456789012345678901234567890
-         if(strlen(buf)<46) sprintf(&buf[strlen(buf)],"%.2X ", rxBuf[i]);	// EX:12345678 L:123 d:12 34 56 78 90 12 34 56.
+         if(strlen(buf)<46) sprintf(&buf[strlen(buf)],"%.2X ", rxBuf.b[i]);	// EX:12345678 L:123 d:12 34 56 78 90 12 34 56.
        }
      }
  
