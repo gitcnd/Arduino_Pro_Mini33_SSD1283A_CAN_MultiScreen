@@ -247,7 +247,7 @@ void amps2(uint8_t s,float val, uint8_t draw, bool good_can) {
   scrn[s].Set_Text_Back_colour(BLACK);
   if(!draw) scrn[s].Set_Text_colour(BLACK);
   else scrn[s].Set_Text_colour(0,192,192); // teal
-  dtostrf(val, -6, 1, fmtString); 	// -888.5	// 6 is the length. negative means left-align. 1 is the decimal places
+  dtostrf(val, 6, 1, fmtString); 	// -888.5	// 6 is the length. negative means left-align. 1 is the decimal places
   if(good_can) 
     sprintf(msgString, "%s", &fmtString);
   else
