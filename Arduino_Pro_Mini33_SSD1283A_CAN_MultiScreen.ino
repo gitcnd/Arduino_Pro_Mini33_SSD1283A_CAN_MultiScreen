@@ -298,8 +298,8 @@ void kwatts2(uint8_t s,int val, uint8_t draw, bool good_can) {
   if(draw) { // No need to un-draw the static text
     scrn[s].Set_Text_colour(WHITE);
     scrn[s].Set_Text_Size( KW_SIZE-1 );  
-    //scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
-    scrn[s].Print_String("watts", 130/2 - (5 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
+    scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
+    //scrn[s].Print_String("watts", 130/2 - (5 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
   }
 } // kwatts2
 
@@ -682,7 +682,11 @@ void loop()
 	  amps(2,can_ampsf,true);
 	  float can_volts=float(rxBuf.si[1]); 
 	  // where on what screen to show this? volts(2,can_volts,true);
-          kwatts(2,rxBuf.si[0] * rxBuf.si[1] / 100,true); // watts = volts * amps
+	  long lwatts=rxBuf.si[0];
+          lwatts=lwatts*rxBuf.si[1]; // watts = volts * amps
+          lwatts=lwatts/100000;      // /10 for the amp scale, /10 for the volt scale, /1000 to convert to kW
+          int iwatts=lwatts;
+          kwatts(2,iwatts,true);
 
         //} else if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
 	//  good_can();
