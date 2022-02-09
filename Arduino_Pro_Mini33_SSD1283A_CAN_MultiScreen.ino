@@ -94,6 +94,7 @@ SSD1283A_GUI scrn[]={ SSD1283A_GUI( CS_SCREEN1, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_
 #define WHITE   0xFFFF
 #define ORANGE  0xFF80
 
+#define downshift2 4 // move all screen-2 things down 4 pixels
 
 // CAN TX Variables
 unsigned long prevTX = 0;                                         // Variable to store last execution time
@@ -247,7 +248,11 @@ void amps2(uint8_t s,float val, uint8_t draw, bool good_can) {
   scrn[s].Set_Text_Back_colour(BLACK);
   if(!draw) scrn[s].Set_Text_colour(BLACK);
   else scrn[s].Set_Text_colour(0,192,192); // teal
-  dtostrf(val, 6, 1, fmtString); 	// -888.5	// 6 is the length. negative means left-align. 1 is the decimal places
+  if(val<=-100) {
+    dtostrf(val, 6, 0, fmtString); 	// -888.5	// 6 is the length. negative means left-align. 1 is the decimal places
+  } else {
+    dtostrf(val, 5, 1, fmtString); 	// -888.5	// 6 is the length. negative means left-align. 1 is the decimal places
+  }
   if(good_can) 
     sprintf(msgString, "%s", &fmtString);
   else
@@ -256,12 +261,12 @@ void amps2(uint8_t s,float val, uint8_t draw, bool good_can) {
   #define AMP_SIZE 4  // 4 * 6 = 24px wide, 4 * 8 = 32px high
   scrn[s].Set_Text_Size( AMP_SIZE );  
   //scrn[s].Print_String(msgString, 130/2 - (3 * 6 * AMP_SIZE)/2 , 1, 0, ' ',10); // "center" for 3 digits   ( num,  x, y, length, filler, base)
-  scrn[s].Print_String(msgString, 0 , 1); //
+  scrn[s].Print_String(msgString, 0 , 1 + downshift2); //
 
   if(draw) {
     scrn[s].Set_Text_colour(WHITE);
     scrn[s].Set_Text_Size( AMP_SIZE-1 );  
-    scrn[s].Print_String("AMPS", 130/2 - (3 * 6 * AMP_SIZE)/2, 8*AMP_SIZE);
+    scrn[s].Print_String("AMPS", 130/2 - (3 * 6 * AMP_SIZE)/2, 8*AMP_SIZE + downshift2);
   }
 } // amps2
 
@@ -286,14 +291,14 @@ void kwatts2(uint8_t s,int val, uint8_t draw, bool good_can) {
   #define KW_SIZE 4  // 4 * 6 = 24px wide, 4 * 8 = 32px high
   scrn[s].Set_Text_Size( KW_SIZE );  
   if(good_can)
-    scrn[s].Print_Number_Int(val, 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66, 3, ' ',10); // "center" for 2 digits   ( num,  x, y, length, filler, base)
+    scrn[s].Print_Number_Int(val, 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66 + downshift2, 3, ' ',10); // "center" for 2 digits   ( num,  x, y, length, filler, base)
   else
-    scrn[s].Print_String(" --", 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66);
+    scrn[s].Print_String(" --", 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66 + downshift2);
 
   if(draw) { // No need to un-draw the static text
     scrn[s].Set_Text_colour(WHITE);
     scrn[s].Set_Text_Size( KW_SIZE-1 );  
-    scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE);
+    scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
   }
 } // kwatts2
 
@@ -672,11 +677,11 @@ void loop()
 	if(rxId==0x501) { // Ken custom CANBUS defined message for AMPS and VOLTS
 	  good_can();
 	  // amps(2,rxBuf.si[0],true);		// Use this if AMPS is a signed whole integer
-	  float can_ampsf=float(rxBuf.si[0]); // can_ampsf=can_ampsf/10.0 * -1.0;
+	  float can_ampsf=float(rxBuf.si[0]);  can_ampsf=can_ampsf/10.0 * -1.0;
 	  amps(2,can_ampsf,true);
 	  float can_volts=float(rxBuf.si[1]); 
 	  // where on what screen to show this? volts(2,can_volts,true);
-          kwatts(2,rxBuf.si[0] * rxBuf.si[1],true); // watts = volts * amps
+          kwatts(2,rxBuf.si[0] * rxBuf.si[1] / 10,true); // watts = volts * amps
 
         //} else if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
 	//  good_can();
