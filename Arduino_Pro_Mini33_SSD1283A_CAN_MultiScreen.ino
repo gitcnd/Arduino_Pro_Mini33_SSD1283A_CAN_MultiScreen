@@ -48,7 +48,7 @@
 */
 
 #include <SerialID.h>	// This lib is a convenient way to report what code and version is running inside our MCUs (Serial.prints below at boot)
-SerialIDset("\n#\tv3.26 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
+SerialIDset("\n#\tv3.3 " __FILE__ "\t" __DATE__ " " __TIME__); // cd Arduino/libraries; git clone https://github.com/gitcnd/SerialID.git
 
 
 #include <mcp_can.h>  // Driver for the Chinese CAN_Bus boards; // cd Arduino/libraries; git clone https://github.com/coryjfowler/MCP_CAN_lib
@@ -135,6 +135,7 @@ unsigned char bright=0;
 unsigned char degsym[]={246,0}; // 246 is the font dergees-symbol
 int8_t last_temp_i=0;
 uint8_t last_temp_m=0;
+uint8_t last_temp_z=0;
 
 int X=0; // on-screen CAN diag output
 int Y=0;
@@ -389,13 +390,13 @@ void soc2(uint8_t s,int val, uint8_t draw, bool good_can) {
 
 
 // Function to display pretty temperature data
-void tempC(uint8_t screen_number, int val, int last_val, int x_offset, bool good_can) { 
+void tempC(uint8_t screen_number, int val, int last_val, int x_offset, int y_offset, bool good_can) { 
   sel_screen(1 << screen_number);
-  tempC2(screen_number, last_val, 0, x_offset, good_can);   // un-draw old
-  tempC2(screen_number, val, 1, x_offset, good_can);         // draw new
+  tempC2(screen_number, last_val, 0, x_offset, y_offset, good_can);   // un-draw old
+  tempC2(screen_number, val, 1, x_offset, y_offset, good_can);         // draw new
 } // tempC
 
-void tempC2(uint8_t s,int val, uint8_t draw, int x_offset, bool good_can) {
+void tempC2(uint8_t s,int val, uint8_t draw, int x_offset, int y_offset, bool good_can) {
   scrn[s].Set_Text_Back_colour(BLACK);
   if(!draw) scrn[s].Set_Text_colour(BLACK);
   else scrn[s].Set_Text_colour(0,192,192); // teal
@@ -515,8 +516,9 @@ void signal(uint8_t s,uint8_t has_sig) {
 void diag_e(uint8_t screen_number,  unsigned long int val) { if( last_diag_e != val ) { diag(screen_number,  last_diag_e,  0, 0,    13*8+3,  (char*)"E:",1);   last_diag_e=val;  diag(screen_number,  val, 1, 0,    13*8+3, (char*)"E:",1); }}
 void diag_w(uint8_t screen_number,  unsigned long int val) { if( last_diag_w != val ) { diag(screen_number,  last_diag_w,  0, 0,    14*8+3,  (char*)"W:",2);   last_diag_w=val;  diag(screen_number,  val, 1, 0,    14*8+3,  (char*)"W:",2); }}
 
-void temp_i(uint8_t screen_number,  int8_t  val, bool good_can) { if( last_temp_i != val ) { tempC(screen_number,  val, last_temp_i,  0, good_can);       last_temp_i=val;  }}
-void temp_m(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_m != val ) { tempC(screen_number,  val, last_temp_m,  130/2, good_can);   last_temp_m=val;  }}
+void temp_i(uint8_t screen_number,  int8_t  val, bool good_can) { if( last_temp_i != val ) { tempC(screen_number,  val, last_temp_i,  0,     130 - 8*TEMP_SIZE-10,  good_can);   last_temp_i=val;  }}
+void temp_m(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_m != val ) { tempC(screen_number,  val, last_temp_m,  130/2, 130 - 8*TEMP_SIZE-10,  good_can);   last_temp_m=val;  }}
+void temp_z(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_z != val ) { tempC(screen_number,  val, last_temp_z,  130/3, 130 - 2*8*TEMP_SIZE-10,  good_can);   last_temp_z=val;  }}
 
 //void diag_n(uint8_t screen_number,  unsigned long int val) { if( last_diag_n != val ) { diag(screen_number,  last_diag_n,  0, 0,    15*8+3, "N:",3);   last_diag_n=val;  diag(screen_number,  val, 1, 0,    15*8+3, "N:",3); }}
 //void diags_r(uint8_t screen_number,      unsigned int val) { if( last_diags_r != val ) { diags(screen_number, last_diags_r, 0, 11*6, 14*8+3, "rsv:",4); last_diags_r=val; diags(screen_number, val, 1, 11*6, 14*8+3, "rsv:",4); }}
@@ -761,7 +763,7 @@ void loop()
 	  good_can();					// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x3D 0x02 0xFF 0xFF 0x55
   	  soc(3,rxBuf.b[7],true);			// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
 	  temp_m(1,rxBuf.b[0]-40,true);			// Controller Temp........................^^^^
-	  //temp_i(1,rxBuf.b[1]-40,true);		// Motor Temp..................................^^^^
+	  temp_z(1,rxBuf.b[1]-40,true);			// Motor Temp..................................^^^^
 	  //rxBuf[2]					// Fault Code.......................................^^^^
 	  //rxBuf[3]<<8+rxBuf[4]			// Motor RPM.............................................^^^^^^^^
 	  //rxBuf[5]<<8+rxBuf[6]			// Motor Torque -100:100 ..........................................^^^^^^^^
