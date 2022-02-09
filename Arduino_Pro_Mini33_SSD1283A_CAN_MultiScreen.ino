@@ -125,6 +125,7 @@ char fmtString[20]; // temp place converting floats etc to text.
 uint8_t last_err=0;
 uint8_t last_dve=0;
 float last_amps=0.0;
+float last_Fkwatts=0.0;
 int last_kwatts=0;
 int last_soc=0;
 long unsigned int last_diag_e=0;
@@ -187,10 +188,10 @@ void pnd(uint8_t screen_number, uint8_t dve, bool good_can) { // dve is 0 for Pa
 
 void pnd2(uint8_t s,uint8_t dve, uint8_t draw, bool good_can) { // Draw (and un-draw) for the pnd() Function
   int x,y;
-  char pnd[]={'P','N','D'};
+  char pnd[]={'R','N','D'};
   #define PND_SIZE 4
   
-  // Draw P, N, or D to show the transmission state:-
+  // Draw R, N, or D to show the transmission state:-
   for(uint8_t c=0,x=26,y=1+(2*PND_SIZE+2);c<3;c++) {
     scrn[s].Set_Text_Back_colour(BLACK);
     if(c==dve) {scrn[s].Set_Text_Size( 1+PND_SIZE ); y=y-(2*PND_SIZE+2);} // Make the active letter bigger
@@ -273,6 +274,46 @@ void amps2(uint8_t s,float val, uint8_t draw, bool good_can) {
 
 
 // Function to display watts being drawn (or negative - regen - added)
+void Fkwatts(uint8_t screen_number, float val, bool good_can) { 
+  if( last_Fkwatts != val ) { // Skip re-drawing anything that hasn't changed
+    sel_screen(1 << screen_number);
+    Fkwatts2(screen_number, last_Fkwatts, 0, good_can);   // un-draw old
+    Fkwatts2(screen_number, val, 1, good_can);         // draw new
+    last_Fkwatts=val;                        // Remember what we just drew, so we can un-draw it later
+  }
+} // Fkwatts
+
+void Fkwatts2(uint8_t s,float val, uint8_t draw, bool good_can) {
+  scrn[s].Set_Text_Back_colour(BLACK);
+  if(!draw) scrn[s].Set_Text_colour(BLACK);
+  else if(val>=0) scrn[s].Set_Text_colour(0,192,192); // teal
+  else  scrn[s].Set_Text_colour(GREEN); // make it green for regen :-)
+
+  #define KW_SIZE 4  // 4 * 6 = 24px wide, 4 * 8 = 32px high
+  scrn[s].Set_Text_Size( KW_SIZE );  
+  if((val<1000.0)&&(val>-100.0)) {
+    dtostrf(val, 5, 1, fmtString); 	// 432.1 -99.1	// 5 is the length. negative means left-align. 1 is the decimal places
+  } else {
+    dtostrf(val, 5, 0, fmtString); 	// 23000 -4320	// 5 is the length. negative means left-align. 1 is the decimal places
+  }
+
+  //scrn[s].Print_String(fmtString, 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66 + downshift2);
+  scrn[s].Print_String(fmtString, 10 , 66 + downshift2);
+
+  if(draw) { // No need to un-draw the static text
+    scrn[s].Set_Text_colour(WHITE);
+    scrn[s].Set_Text_Size( KW_SIZE-1 );  
+    scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
+    //scrn[s].Print_String("watts", 130/2 - (5 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
+  }
+
+} // Fkwatts2
+
+
+
+
+
+// Function to display watts being drawn (or negative - regen - added)
 void kwatts(uint8_t screen_number, int val, bool good_can) { 
   if( last_kwatts != val ) { // Skip re-drawing anything that hasn't changed
     sel_screen(1 << screen_number);
@@ -301,6 +342,9 @@ void kwatts2(uint8_t s,int val, uint8_t draw, bool good_can) {
     scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
     //scrn[s].Print_String("watts", 130/2 - (5 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
   }
+
+
+
 } // kwatts2
 
 
@@ -489,7 +533,8 @@ void instrument_check(bool good_can) { // good_can=true (for instrument_check 88
   if(good_can)   check_engine(0,1) ; else check_engine(0,0);
   if(good_can)   pnd(0,1,good_can); else  pnd(0,1,good_can);
   if(good_can)   amps(2,888.8,good_can); else  amps(2,987.6,good_can);
-  if(good_can)   kwatts(2,-88,good_can); else  kwatts(2,-98,good_can);
+  //if(good_can)   kwatts(2,-88,good_can); else  kwatts(2,-98,good_can);
+  if(good_can)   Fkwatts(2,-88.8,good_can); else  Fkwatts(2,-98.8,good_can);
   if(good_can)   soc(3,88,good_can); else soc(3,123,good_can);	// Note that the value must be different, otherwise the screen-print code gets skipped.
   //show_font(1);  
   //if(good_can)   tempC(1,88,0,0,good_can); else    tempC(1,123,0,0,good_can);
@@ -680,13 +725,13 @@ void loop()
 	  // amps(2,rxBuf.si[0],true);		// Use this if AMPS is a signed whole integer
 	  float can_ampsf=float(rxBuf.si[0]);  can_ampsf=can_ampsf/10.0 ;
 	  amps(2,can_ampsf,true);
-	  float can_volts=float(rxBuf.si[1]); 
-	  // where on what screen to show this? volts(2,can_volts,true);
-	  long lwatts=rxBuf.si[0];
-          lwatts=lwatts*rxBuf.si[1]; // watts = volts * amps  (nb volts is *10 too - eg 1462 instead of 146.2)
-          lwatts=lwatts/100000;      // /10 for the amp scale, /10 for the volt scale, /1000 to convert to kW
-          int iwatts=lwatts;
-          kwatts(2,iwatts,true);
+	  float can_volts=float(rxBuf.si[1]);  can_volts=can_volts/10.0 ;
+	  //long lwatts=rxBuf.si[0];
+          //lwatts=lwatts*rxBuf.si[1]; // watts = volts * amps  (nb volts is *10 too - eg 1462 instead of 146.2)
+          //lwatts=lwatts/100000;      // /10 for the amp scale, /10 for the volt scale, /1000 to convert to kW
+          //int iwatts=lwatts;
+          //kwatts(2,iwatts,true);
+          Fkwatts(2,can_ampsf * can_volts ,true);
 
           // kwatts(2,rxBuf.si[1],true); // 1462
 
@@ -714,6 +759,18 @@ void loop()
 	  //uint64_t w=rxBuf[7]<<24 + rxBuf[6]<<16 + rxBuf[5]<<8 + rxBuf[4];
 	  diag_e(0,rxBuf.l[0]); // e;
 	  diag_w(0,rxBuf.l[1]); // w
+	  // Also, for the P, N, D the ID for this is 0x181 byte 7
+	  // N = 18 or 1A    	     11000 
+	  //                 	     11010
+	  // D = 39 or 3B    	    111001
+	  //                 	    111011
+	  // R = 59 or 5B    	   1011001
+	  //                	   1011011
+	  if((rxBuf.b[7] & 	0b01100001) == 0) pnd(0, 1, true);		// N
+	  else if((rxBuf.b[7]& 	0b01100001) == 0b00100001) pnd(0, 2, true);	// D
+	  else if((rxBuf.b[7]& 	0b01100001) == 0b01000001) pnd(0, 0, true);	// R
+
+
 	} else if(rxId==0x736) {			// Standard ID: 0x281       DLC: 8  Data: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
 	  good_can();
 	}
