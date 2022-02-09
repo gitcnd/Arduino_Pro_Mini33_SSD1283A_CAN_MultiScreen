@@ -108,13 +108,13 @@ unsigned char len;
 
 #define BufSz 8
 union Data {
-  uint8_t b[BufSz/sizeof(uint8_t)];   // 8 bytes
-  int8_t sb[BufSz/sizeof(uint8_t)];   // 8 bytes
-  uint16_t i[BufSz/sizeof(uint16_t)]; // 4
-  int16_t si[BufSz/sizeof(int16_t)];  // 4
-  uint32_t l[BufSz/sizeof(uint32_t)]; // 2
-  int32_t sl[BufSz/sizeof(int32_t)];  // 2
-  float f[BufSz/sizeof(float)];
+  uint8_t  b[BufSz/sizeof(uint8_t)];   // 8 bytes
+  int8_t  sb[BufSz/sizeof(uint8_t)];   // 8 bytes
+  uint16_t i[BufSz/sizeof(uint16_t)];  // 4
+  int16_t si[BufSz/sizeof(int16_t)];   // 4
+  uint32_t l[BufSz/sizeof(uint32_t)];  // 2
+  int32_t sl[BufSz/sizeof(int32_t)];   // 2
+  float    f[BufSz/sizeof(float)];
 } rxBuf;
 
 // Serial Output String Buffer
@@ -258,9 +258,11 @@ void amps2(uint8_t s,float val, uint8_t draw, bool good_can) {
   //scrn[s].Print_String(msgString, 130/2 - (3 * 6 * AMP_SIZE)/2 , 1, 0, ' ',10); // "center" for 3 digits   ( num,  x, y, length, filler, base)
   scrn[s].Print_String(msgString, 0 , 1); //
 
-  if(draw) scrn[s].Set_Text_colour(WHITE);
-  scrn[s].Set_Text_Size( AMP_SIZE-1 );  
-  scrn[s].Print_String("AMPS", 130/2 - (3 * 6 * AMP_SIZE)/2, 8*AMP_SIZE);
+  if(draw) {
+    scrn[s].Set_Text_colour(WHITE);
+    scrn[s].Set_Text_Size( AMP_SIZE-1 );  
+    scrn[s].Print_String("AMPS", 130/2 - (3 * 6 * AMP_SIZE)/2, 8*AMP_SIZE);
+  }
 } // amps2
 
 
@@ -288,9 +290,11 @@ void kwatts2(uint8_t s,int val, uint8_t draw, bool good_can) {
   else
     scrn[s].Print_String(" --", 130/2 - (3 * 6 * KW_SIZE)/2 - KW_SIZE*3 , 66);
 
-  if(draw) scrn[s].Set_Text_colour(WHITE);
-  scrn[s].Set_Text_Size( KW_SIZE-1 );  
-  scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE);
+  if(draw) { // No need to un-draw the static text
+    scrn[s].Set_Text_colour(WHITE);
+    scrn[s].Set_Text_Size( KW_SIZE-1 );  
+    scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE);
+  }
 } // kwatts2
 
 
@@ -320,9 +324,11 @@ void soc2(uint8_t s,int val, uint8_t draw, bool good_can) {
   else
     scrn[s].Print_String(" --", 130/2 - (3 * 6 * SOC_SIZE)/2 + SOC_SIZE*3 , 66);
 
-  if(draw) scrn[s].Set_Text_colour(WHITE);
-  scrn[s].Set_Text_Size( SOC_SIZE-1 );  
-  scrn[s].Print_String("SoC", 130/2 - (3 * 6 * SOC_SIZE)/2 + (SOC_SIZE*6/2) , 66+8*SOC_SIZE);
+  if(draw) {
+    scrn[s].Set_Text_colour(WHITE);
+    scrn[s].Set_Text_Size( SOC_SIZE-1 );  
+    scrn[s].Print_String("SoC", 130/2 - (3 * 6 * SOC_SIZE)/2 + (SOC_SIZE*6/2) , 66+8*SOC_SIZE);
+  }
 } // soc2
 
 
@@ -655,24 +661,33 @@ void loop()
 
       if((rxId & 0x80000000) == 0x80000000) {           // Determine if ID is standard (11 bits) or extended (29 bits)
         unsigned long hbcid=rxId & 0x1FFFFFFF; 		// Process extended CAN ID's (if any) here.
-	if(hbcid==0x22f015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
-	  good_can();
-	  //long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
-	  long can_amps=rxBuf.b[0]; can_amps+=rxBuf.b[1]; can_amps-=32767;
-	  float can_ampsf=float(can_amps); can_ampsf=can_ampsf/10.0 * -1.0;
-	  amps(2,can_ampsf,true);
-	}
+	//if(hbcid==0x22f015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
+	//  good_can();
+	//  //long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
+	//  long can_amps=rxBuf.b[0]; can_amps+=rxBuf.b[1]; can_amps-=32767;
+	//  float can_ampsf=float(can_amps); can_ampsf=can_ampsf/10.0 * -1.0;
+	//  amps(2,can_ampsf,true);
+	//}
       } else {
-	if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
+	if(rxId==0x501) { // Ken custom CANBUS defined message for AMPS and VOLTS
 	  good_can();
-	  //long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
-	  //float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
-	  long can_amps=rxBuf.b[0]; can_amps+=rxBuf.b[1]; can_amps-=32767;
-	  float can_ampsf=float(can_amps); can_ampsf=can_ampsf/10.0 * -1.0;
+	  // amps(2,rxBuf.si[0],true);		// Use this if AMPS is a signed whole integer
+	  float can_ampsf=float(rxBuf.si[0]); // can_ampsf=can_ampsf/10.0 * -1.0;
 	  amps(2,can_ampsf,true);
+	  float can_volts=float(rxBuf.si[1]); 
+	  // where on what screen to show this? volts(2,can_volts,true);
+          kwatts(2,rxBuf.si[0] * rxBuf.si[1],true); // watts = volts * amps
+
+        //} else if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
+	//  good_can();
+	//  //long can_amps=rxBuf[0]<<8+rxBuf[1]-32767;
+	//  //float can_ampsf=can_amps; can_ampsf=can_ampsf/10.0 * -1.0;
+	//  long can_amps=rxBuf.b[0]; can_amps+=rxBuf.b[1]; can_amps-=32767;
+	//  float can_ampsf=float(can_amps); can_ampsf=can_ampsf/10.0 * -1.0;
+	//  amps(2,can_ampsf,true);
 	} else if(rxId==0x401) {			// PID: b48401, OBD Header: 7E3, Equation: H - state of charge etc
 	  good_can();					// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x3D 0x02 0xFF 0xFF 0x55
-  	  soc(3,rxBuf.b[7],true);				// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
+  	  soc(3,rxBuf.b[7],true);			// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
 	  temp_i(1,rxBuf.b[0]-40,true);			// Controller Temp........................^^^^
 	  temp_m(1,rxBuf.b[1]-40,true);			// Motor Temp..................................^^^^
 	  //rxBuf[2]					// Fault Code.......................................^^^^
