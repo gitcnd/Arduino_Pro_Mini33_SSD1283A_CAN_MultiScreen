@@ -94,7 +94,7 @@ SSD1283A_GUI scrn[]={ SSD1283A_GUI( CS_SCREEN1, LCD_CD_PIN_A0, LCD_RST_PIN, LCD_
 #define WHITE   0xFFFF
 #define ORANGE  0xFF80
 
-#define downshift2 4 // move all screen-2 things down 4 pixels
+#define downshift2 7 // move all screen-2 things down 7 pixels
 
 // CAN TX Variables
 unsigned long prevTX = 0;                                         // Variable to store last execution time
@@ -256,7 +256,7 @@ void amps2(uint8_t s,float val, uint8_t draw, bool good_can) {
   if(good_can) 
     sprintf(msgString, "%s", &fmtString);
   else
-    sprintf(msgString, "%s", " ---.-");
+    sprintf(msgString, "%s", "---.-");
 
   #define AMP_SIZE 4  // 4 * 6 = 24px wide, 4 * 8 = 32px high
   scrn[s].Set_Text_Size( AMP_SIZE );  
@@ -681,7 +681,7 @@ void loop()
 	  amps(2,can_ampsf,true);
 	  float can_volts=float(rxBuf.si[1]); 
 	  // where on what screen to show this? volts(2,can_volts,true);
-          kwatts(2,rxBuf.si[0] * rxBuf.si[1] / 10,true); // watts = volts * amps
+          kwatts(2,rxBuf.si[0] * rxBuf.si[1] / 100,true); // watts = volts * amps
 
         //} else if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
 	//  good_can();
