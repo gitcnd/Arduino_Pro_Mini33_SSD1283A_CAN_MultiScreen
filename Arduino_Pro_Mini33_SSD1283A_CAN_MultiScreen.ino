@@ -180,10 +180,12 @@ int socv(float val) {
 
 // Function to display (P)ark, (N)eutral, or (D)rive on a display, and optionally the check-engine symbol
 void pnd(uint8_t screen_number, uint8_t dve, bool good_can) { // dve is 0 for Park, 1 for Neutral, 2 for Drive
-  sel_screen(1 << screen_number);
-  pnd2(screen_number, last_dve, 0, good_can);   // un-draw old
-  pnd2(screen_number, dve, 1, good_can);        // draw new
-  last_dve=dve;                       // Remember what we just drew, so we can un-draw it later
+  if(dve != last_dve) {
+    sel_screen(1 << screen_number);
+    pnd2(screen_number, last_dve, 0, good_can);   // un-draw old
+    pnd2(screen_number, dve, 1, good_can);        // draw new
+    last_dve=dve;                       // Remember what we just drew, so we can un-draw it later
+  }
 } // pnd
 
 void pnd2(uint8_t s,uint8_t dve, uint8_t draw, bool good_can) { // Draw (and un-draw) for the pnd() Function
@@ -734,7 +736,7 @@ void loop()
           //lwatts=lwatts/100000;      // /10 for the amp scale, /10 for the volt scale, /1000 to convert to kW
           //int iwatts=lwatts;
           //kwatts(2,iwatts,true);
-          Fkwatts(2,can_ampsf * can_volts ,true);
+          Fkwatts(2,can_ampsf * can_volts /1000.0 ,true);
 
 	  temp_i(1,rxBuf.sb[4],true);			// Battery Temp
           // kwatts(2,rxBuf.si[1],true); // 1462
@@ -756,8 +758,8 @@ void loop()
 	} else if(rxId==0x401) {			// PID: b48401, OBD Header: 7E3, Equation: H - state of charge etc
 	  good_can();					// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x3D 0x02 0xFF 0xFF 0x55
   	  soc(3,rxBuf.b[7],true);			// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
-	  // temp_i(1,rxBuf.b[0]-40,true);			// Controller Temp........................^^^^
-	  temp_m(1,rxBuf.b[1]-40,true);			// Motor Temp..................................^^^^
+	  temp_m(1,rxBuf.b[0]-40,true);			// Controller Temp........................^^^^
+	  //temp_i(1,rxBuf.b[1]-40,true);		// Motor Temp..................................^^^^
 	  //rxBuf[2]					// Fault Code.......................................^^^^
 	  //rxBuf[3]<<8+rxBuf[4]			// Motor RPM.............................................^^^^^^^^
 	  //rxBuf[5]<<8+rxBuf[6]			// Motor Torque -100:100 ..........................................^^^^^^^^
