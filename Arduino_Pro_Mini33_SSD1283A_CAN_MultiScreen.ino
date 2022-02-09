@@ -736,7 +736,9 @@ void loop()
           //lwatts=lwatts/100000;      // /10 for the amp scale, /10 for the volt scale, /1000 to convert to kW
           //int iwatts=lwatts;
           //kwatts(2,iwatts,true);
-          Fkwatts(2,can_ampsf * can_volts /1000.0 ,true);
+	  float kwatts=can_ampsf * can_volts /100.0;
+	  kwatts=int(kwatts+0.49);
+          Fkwatts(2,kwatts /10.0 ,true); // 1 decimal precision
 
 	  temp_i(1,rxBuf.sb[4],true);			// Battery Temp
           // kwatts(2,rxBuf.si[1],true); // 1462
