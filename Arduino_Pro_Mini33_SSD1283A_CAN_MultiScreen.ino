@@ -678,7 +678,7 @@ void loop()
 	if(rxId==0x501) { // Ken custom CANBUS defined message for AMPS and VOLTS
 	  good_can();
 	  // amps(2,rxBuf.si[0],true);		// Use this if AMPS is a signed whole integer
-	  float can_ampsf=float(rxBuf.si[0]);  can_ampsf=can_ampsf/10.0 * -1.0;
+	  float can_ampsf=float(rxBuf.si[0]);  can_ampsf=can_ampsf/10.0 ;
 	  amps(2,can_ampsf,true);
 	  float can_volts=float(rxBuf.si[1]); 
 	  // where on what screen to show this? volts(2,can_volts,true);
@@ -686,7 +686,9 @@ void loop()
           lwatts=lwatts*rxBuf.si[1]; // watts = volts * amps
           lwatts=lwatts/100000;      // /10 for the amp scale, /10 for the volt scale, /1000 to convert to kW
           int iwatts=lwatts;
-          kwatts(2,iwatts,true);
+          //kwatts(2,iwatts,true);
+
+          kwatts(2,rxBuf.si[1],true);
 
         //} else if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
 	//  good_can();
