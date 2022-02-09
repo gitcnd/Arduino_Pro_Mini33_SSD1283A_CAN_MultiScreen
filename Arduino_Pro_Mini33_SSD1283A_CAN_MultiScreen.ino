@@ -133,7 +133,7 @@ long unsigned int last_diag_w=0;
 
 unsigned char bright=0;
 unsigned char degsym[]={246,0}; // 246 is the font dergees-symbol
-uint8_t last_temp_i=0;
+int8_t last_temp_i=0;
 uint8_t last_temp_m=0;
 
 int X=0; // on-screen CAN diag output
@@ -213,23 +213,26 @@ void pnd2(uint8_t s,uint8_t dve, uint8_t draw, bool good_can) { // Draw (and un-
 
 // Function to show (or remove) the Check Engine symbol
 void check_engine(uint8_t s, uint8_t err) { //s is screen_number, err=0 means no error (un-draw the logo) err>0 means error
-  uint8_t sz=2; // Set the size of the symbol
-  sel_screen(1 << s);
+  if(err!=last_err) {
+    err=last_err;
+    uint8_t sz=2; // Set the size of the symbol
+    sel_screen(1 << s);
 
-  if(err)  scrn[s].Set_Text_colour(RED);
-  else     scrn[s].Set_Text_colour(BLACK);
-  scrn[s].Set_Text_Back_colour(BLACK);
-  scrn[s].Set_Text_Size(sz);
-  for(uint8_t c=128,x=45,y=79;c<132;c++,x+=5*sz) { // These are 8 custom font characters that make up a check-engine symbol (4 x 2 characters of 6wide x 8high pixels each)
-    scrn[s].Set_Text_Cousur(x,y);
-    scrn[s].writec(c); // Print_String("", 45, 49);
-    //scrn[s].Print_String("", 45, 49+8);
-  }
-  for(uint8_t c=132,x=45,y=79+8*sz;c<136;c++,x+=5*sz) { // The next 4 from the above 4 custom font chars
-    scrn[s].Set_Text_Cousur(x,y);
-    scrn[s].writec(c); // Print_String("", 45, 49);
-    //scrn[s].Print_String("", 45, 49+8);
-  }
+    if(err)  scrn[s].Set_Text_colour(RED);
+    else     scrn[s].Set_Text_colour(BLACK);
+    scrn[s].Set_Text_Back_colour(BLACK);
+    scrn[s].Set_Text_Size(sz);
+    for(uint8_t c=128,x=45,y=79;c<132;c++,x+=5*sz) { // These are 8 custom font characters that make up a check-engine symbol (4 x 2 characters of 6wide x 8high pixels each)
+      scrn[s].Set_Text_Cousur(x,y);
+      scrn[s].writec(c); // Print_String("", 45, 49);
+      //scrn[s].Print_String("", 45, 49+8);
+    }
+    for(uint8_t c=132,x=45,y=79+8*sz;c<136;c++,x+=5*sz) { // The next 4 from the above 4 custom font chars
+      scrn[s].Set_Text_Cousur(x,y);
+      scrn[s].writec(c); // Print_String("", 45, 49);
+      //scrn[s].Print_String("", 45, 49+8);
+    }
+  } // changed
 } // check_engine
 
 
@@ -510,7 +513,7 @@ void signal(uint8_t s,uint8_t has_sig) {
 void diag_e(uint8_t screen_number,  unsigned long int val) { if( last_diag_e != val ) { diag(screen_number,  last_diag_e,  0, 0,    13*8+3,  (char*)"E:",1);   last_diag_e=val;  diag(screen_number,  val, 1, 0,    13*8+3, (char*)"E:",1); }}
 void diag_w(uint8_t screen_number,  unsigned long int val) { if( last_diag_w != val ) { diag(screen_number,  last_diag_w,  0, 0,    14*8+3,  (char*)"W:",2);   last_diag_w=val;  diag(screen_number,  val, 1, 0,    14*8+3,  (char*)"W:",2); }}
 
-void temp_i(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_i != val ) { tempC(screen_number,  val, last_temp_i,  0, good_can);       last_temp_i=val;  }}
+void temp_i(uint8_t screen_number,  int8_t  val, bool good_can) { if( last_temp_i != val ) { tempC(screen_number,  val, last_temp_i,  0, good_can);       last_temp_i=val;  }}
 void temp_m(uint8_t screen_number,  uint8_t val, bool good_can) { if( last_temp_m != val ) { tempC(screen_number,  val, last_temp_m,  130/2, good_can);   last_temp_m=val;  }}
 
 //void diag_n(uint8_t screen_number,  unsigned long int val) { if( last_diag_n != val ) { diag(screen_number,  last_diag_n,  0, 0,    15*8+3, "N:",3);   last_diag_n=val;  diag(screen_number,  val, 1, 0,    15*8+3, "N:",3); }}
@@ -733,7 +736,15 @@ void loop()
           //kwatts(2,iwatts,true);
           Fkwatts(2,can_ampsf * can_volts ,true);
 
+	  temp_i(1,rxBuf.sb[4],true);			// Battery Temp
           // kwatts(2,rxBuf.si[1],true); // 1462
+
+
+	  if(rxBuf.b[5]&0x08) {
+    	    check_engine(0,1);
+	  } else {
+    	    check_engine(0,0);
+   	  }
 
         //} else if(rxId==0x7E3 || rxId==0x015) { // PID: 22f015, OBD Header: 7E3, Equation: ((((A*256)+B)-32767.0)/10.0)*-1
 	//  good_can();
@@ -745,7 +756,7 @@ void loop()
 	} else if(rxId==0x401) {			// PID: b48401, OBD Header: 7E3, Equation: H - state of charge etc
 	  good_can();					// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x3D 0x02 0xFF 0xFF 0x55
   	  soc(3,rxBuf.b[7],true);			// Standard ID: 0x401       DLC: 8  Data: 0x47 0x47 0x00 0x00 0x00 0x00 0x00 0x55
-	  temp_i(1,rxBuf.b[0]-40,true);			// Controller Temp........................^^^^
+	  // temp_i(1,rxBuf.b[0]-40,true);			// Controller Temp........................^^^^
 	  temp_m(1,rxBuf.b[1]-40,true);			// Motor Temp..................................^^^^
 	  //rxBuf[2]					// Fault Code.......................................^^^^
 	  //rxBuf[3]<<8+rxBuf[4]			// Motor RPM.............................................^^^^^^^^
