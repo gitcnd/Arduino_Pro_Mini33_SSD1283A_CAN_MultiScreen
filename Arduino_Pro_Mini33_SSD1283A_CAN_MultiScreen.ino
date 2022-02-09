@@ -298,7 +298,8 @@ void kwatts2(uint8_t s,int val, uint8_t draw, bool good_can) {
   if(draw) { // No need to un-draw the static text
     scrn[s].Set_Text_colour(WHITE);
     scrn[s].Set_Text_Size( KW_SIZE-1 );  
-    scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
+    //scrn[s].Print_String(" kW", 130/2 - (3 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
+    scrn[s].Print_String("watts", 130/2 - (5 * 6 * KW_SIZE)/2 , 66+8*KW_SIZE + downshift2);
   }
 } // kwatts2
 
